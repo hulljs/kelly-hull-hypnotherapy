@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Guided Hypnotherapy Recordings | Kelly Hull Hypnotherapy</title>
+<meta name="description" content="Download professional guided hypnotherapy recordings for sleep, anxiety, confidence, weight, smoking cessation and more. By Certified Clinical & Transpersonal Hypnotherapist Kelly Hull."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  /* ── REPLACE THESE WITH YOUR SUPABASE VALUES ── */
+  /* See admin.html setup instructions             */
+
+  :root {
+    --lavender-deep:#7c5cbf; --lavender-mid:#a98dd6; --lavender-light:#d9cef0;
+    --lavender-pale:#ede8f7; --sage-deep:#4a6b45; --sage-mid:#7a9e74;
+    --sage-light:#b8ccb5; --sage-pale:#e8f0e6; --cream:#faf7f2; --ivory:#f5f0e8;
+    --rose:#d4a0a0; --rose-pale:#f5e8e8; --gold:#c8922a; --gold-pale:#fdf3e3;
+    --teal:#2a7a7a; --teal-pale:#e3f5f5;
+    --text-dark:#2a2035; --text-mid:#5a4e70; --text-light:#8a7ea0;
+    --white:#ffffff; --serif:'Cormorant Garamond',Georgia,serif; --sans:'Nunito',system-ui,sans-serif;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth} body{font-family:var(--sans);background:var(--cream);color:var(--text-dark);overflow-x:hidden}
+
+  /* NAV */
+  nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content:space-between;align-items:center;padding:.9rem 2.5rem;background:rgba(250,247,242,.95);backdrop-filter:blur(12px);border-bottom:1px solid rgba(169,141,214,.15)}
+  .nav-logo{font-family:var(--serif);font-weight:500;font-size:1.1rem;color:var(--text-dark);text-decoration:none;line-height:1.2}
+  .nav-logo span{display:block;font-size:.62rem;font-family:var(--sans);font-weight:400;letter-spacing:.15em;text-transform:uppercase;color:var(--lavender-mid)}
+  .nav-links{display:flex;gap:1.5rem;align-items:center;list-style:none}
+  .nav-links a{font-size:.82rem;font-weight:500;color:var(--text-mid);text-decoration:none;transition:color .2s}
+  .nav-links a:hover{color:var(--lavender-deep)}
+  .nav-back{font-size:.78rem;color:var(--text-light);text-decoration:none;display:flex;align-items:center;gap:.3rem}
+  .nav-back:hover{color:var(--lavender-deep)}
+  .btn-nav{background:var(--lavender-deep);color:var(--white)!important;padding:.45rem 1.1rem;border-radius:20px;font-size:.8rem!important}
+
+  /* HERO */
+  .hero{padding:7rem 2rem 4rem;text-align:center;background:linear-gradient(160deg,#f0eafa 0%,#faf7f2 50%,#eef4ec 100%);position:relative;overflow:hidden}
+  .hero-orb{position:absolute;border-radius:50%;pointer-events:none;filter:blur(80px);opacity:.4}
+  .hero-orb-1{width:400px;height:400px;background:radial-gradient(circle,#c9b8e8,transparent);top:-80px;right:-60px}
+  .hero-orb-2{width:300px;height:300px;background:radial-gradient(circle,#b8ccb5,transparent);bottom:0;left:-40px}
+  .eyebrow{font-size:.72rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--sage-deep);margin-bottom:.8rem}
+  .hero h1{font-family:var(--serif);font-weight:300;font-size:clamp(2rem,5vw,3.6rem);line-height:1.15;color:var(--text-dark);margin-bottom:.6rem}
+  .hero h1 em{font-style:italic;color:var(--lavender-deep)}
+  .hero p{font-size:1rem;color:var(--text-mid);max-width:520px;margin:0 auto 2rem;line-height:1.7;font-weight:300}
+  .hero-stats{display:flex;flex-wrap:wrap;gap:1.5rem;justify-content:center;margin-top:1.5rem}
+  .stat{font-size:.8rem;color:var(--text-light);display:flex;align-items:center;gap:.35rem}
+
+  /* FILTERS */
+  .filters{background:var(--white);border-bottom:1px solid rgba(169,141,214,.15);padding:1rem 2rem;position:sticky;top:64px;z-index:90;display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center}
+  .filter-btn{padding:.35rem 1rem;border-radius:20px;border:1.5px solid rgba(169,141,214,.25);background:transparent;color:var(--text-mid);font-family:var(--sans);font-size:.8rem;cursor:pointer;transition:all .2s;font-weight:500}
+  .filter-btn.active,.filter-btn:hover{background:var(--lavender-pale);color:var(--lavender-deep);border-color:var(--lavender-mid)}
+
+  /* GRID */
+  .library{padding:3.5rem 2rem;max-width:1200px;margin:0 auto}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.5rem}
+
+  /* CARD */
+  .card{background:var(--white);border-radius:16px;overflow:hidden;border:1px solid rgba(169,141,214,.15);transition:transform .25s,box-shadow .25s}
+  .card:hover{transform:translateY(-4px);box-shadow:0 16px 40px rgba(124,92,191,.12)}
+  .card-cover{height:110px;display:flex;align-items:center;justify-content:center;font-size:3rem;position:relative}
+  .card-badge{position:absolute;top:.75rem;right:.75rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.2rem .6rem;border-radius:12px;background:rgba(255,255,255,.8);color:var(--text-mid)}
+  .card-featured{position:absolute;top:.75rem;left:.75rem;font-size:.65rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:.2rem .6rem;border-radius:12px;background:var(--gold);color:var(--white)}
+  .card-body{padding:1.2rem 1.2rem .8rem}
+  .card-title{font-family:var(--serif);font-weight:500;font-size:1.15rem;color:var(--text-dark);margin-bottom:.4rem}
+  .card-desc{font-size:.84rem;color:var(--text-mid);line-height:1.6;font-weight:300;margin-bottom:.8rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .card-meta{display:flex;gap:.75rem;align-items:center;margin-bottom:.9rem}
+  .meta-pill{font-size:.68rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:.2rem .55rem;border-radius:10px}
+  .card-footer{padding:0 1.2rem 1.1rem;display:flex;gap:.6rem;align-items:center}
+  .price{font-family:var(--serif);font-size:1.3rem;font-weight:500;color:var(--lavender-deep);flex:1}
+  .btn-preview{background:transparent;border:1.5px solid rgba(169,141,214,.35);color:var(--lavender-deep);padding:.45rem .9rem;border-radius:20px;font-size:.78rem;font-family:var(--sans);font-weight:600;cursor:pointer;transition:all .2s}
+  .btn-preview:hover{background:var(--lavender-pale)}
+  .btn-buy{background:var(--lavender-deep);color:var(--white);padding:.45rem 1.1rem;border-radius:20px;font-size:.78rem;font-family:var(--sans);font-weight:700;cursor:pointer;text-decoration:none;transition:all .2s;border:none}
+  .btn-buy:hover{background:var(--lavender-mid)}
+
+  /* AUDIO PLAYER */
+  .audio-wrap{overflow:hidden;transition:max-height .35s ease,padding .3s;max-height:0;padding:0 1.2rem}
+  .audio-wrap.open{max-height:80px;padding:.6rem 1.2rem}
+  .audio-wrap audio{width:100%;height:36px;outline:none;border-radius:8px;accent-color:var(--lavender-deep)}
+
+  /* SKELETON */
+  .skeleton{background:var(--white);border-radius:16px;overflow:hidden;border:1px solid rgba(169,141,214,.15)}
+  .skel-cover{height:110px;background:linear-gradient(90deg,var(--lavender-pale) 25%,#f0ebfa 50%,var(--lavender-pale) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite}
+  .skel-line{height:14px;border-radius:6px;background:linear-gradient(90deg,var(--lavender-pale) 25%,#f0ebfa 50%,var(--lavender-pale) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;margin:.7rem 1.2rem}
+  .skel-line.short{width:60%}
+  @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+  /* BUNDLE */
+  .bundle{margin:3rem auto;max-width:900px;background:linear-gradient(135deg,var(--lavender-deep) 0%,#5a3fa0 100%);border-radius:20px;padding:3rem 2.5rem;text-align:center;position:relative;overflow:hidden}
+  .bundle::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M20 20c0 5.5-4.5 10-10 10S0 25.5 0 20 4.5 10 10 10s10 4.5 10 10zm20 0c0 5.5-4.5 10-10 10s-10-4.5-10-10 4.5-10 10-10 10 4.5 10 10z'/%3E%3C/g%3E%3C/svg%3E")}
+  .bundle h2{font-family:var(--serif);font-weight:300;font-size:clamp(1.6rem,4vw,2.4rem);color:var(--white);margin-bottom:.6rem}
+  .bundle h2 em{font-style:italic;color:#d9cef0}
+  .bundle p{color:rgba(255,255,255,.75);max-width:500px;margin:0 auto 1.8rem;font-size:.95rem;line-height:1.7;font-weight:300}
+  .bundle-price{display:flex;flex-wrap:wrap;gap:1.5rem;justify-content:center;align-items:center;margin-bottom:2rem}
+  .price-tag{text-align:center}
+  .price-tag .amount{font-family:var(--serif);font-size:2.4rem;color:var(--white);font-weight:500;line-height:1}
+  .price-tag .label{font-size:.72rem;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-top:.2rem}
+  .price-divider{font-size:1.2rem;color:rgba(255,255,255,.3)}
+  .btn-bundle{background:var(--white);color:var(--lavender-deep);padding:.9rem 2.4rem;border-radius:32px;font-family:var(--sans);font-weight:700;font-size:.95rem;text-decoration:none;border:none;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.2);transition:transform .2s;display:inline-block}
+  .btn-bundle:hover{transform:translateY(-2px)}
+
+  /* EMPTY STATE */
+  .empty{text-align:center;padding:5rem 2rem;color:var(--text-light)}
+  .empty-icon{font-size:3rem;margin-bottom:1rem}
+  .empty h3{font-family:var(--serif);font-size:1.4rem;margin-bottom:.5rem;color:var(--text-mid)}
+  .empty p{font-size:.9rem;max-width:360px;margin:0 auto;line-height:1.7}
+
+  /* FOOTER */
+  footer{background:var(--text-dark);color:rgba(255,255,255,.5);padding:2.5rem 2rem;text-align:center}
+  .footer-logo{font-family:var(--serif);font-size:1.2rem;color:var(--white);margin-bottom:.3rem}
+  .footer-sub{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--lavender-mid);margin-bottom:1.5rem}
+  .footer-links{display:flex;flex-wrap:wrap;justify-content:center;gap:1.2rem;list-style:none;margin-bottom:1.2rem}
+  .footer-links a{color:rgba(255,255,255,.45);text-decoration:none;font-size:.8rem;transition:color .2s}
+  .footer-links a:hover{color:var(--lavender-light)}
+  .footer-copy{font-size:.72rem;color:rgba(255,255,255,.25)}
+
+  @media(max-width:600px){nav{padding:.8rem 1.2rem}.hero{padding:6rem 1.2rem 3rem}.library{padding:2.5rem 1rem}.filters{padding:.8rem 1rem}.bundle{padding:2rem 1.2rem}}
+</style>
+</head>
+<body>
+
+<nav id="nav">
+  <a href="index.html" class="nav-logo">
+    Kelly Hull Hypnotherapy
+    <span>Certified Clinical &amp; Transpersonal Hypnotherapist</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="index.html#services">Services</a></li>
+    <li><a href="index.html#about">About</a></li>
+    <li><a href="index.html#fees">Fees &amp; Access</a></li>
+    <li><a href="index.html#contact">Contact</a></li>
+    <li><a href="https://calendly.com/kellyhullhypnotherapy/consultation" target="_blank" class="btn-nav">Book a Session</a></li>
+  </ul>
+</nav>
+
+<section class="hero">
+  <div class="hero-orb hero-orb-1"></div>
+  <div class="hero-orb hero-orb-2"></div>
+  <p class="eyebrow">Digital Downloads · Instant Access · Personal Use</p>
+  <h1>Guided Hypnotherapy <em>Recordings</em></h1>
+  <p>Professional recordings designed to work between sessions — or as your first step into the power of your subconscious mind.</p>
+  <div class="hero-stats">
+    <div class="stat"><span>🎧</span> <span id="stat-count">Loading…</span> recordings</div>
+    <div class="stat"><span>⏱</span> 15–30 minutes each</div>
+    <div class="stat"><span>📱</span> Download &amp; listen anywhere</div>
+    <div class="stat"><span>🔒</span> Personal use license included</div>
+  </div>
+</section>
+
+<div class="filters" id="filterBar">
+  <button class="filter-btn active" data-cat="All" onclick="filterBy('All',this)">All</button>
+  <button class="filter-btn" data-cat="Sleep" onclick="filterBy('Sleep',this)">🌙 Sleep</button>
+  <button class="filter-btn" data-cat="Anxiety" onclick="filterBy('Anxiety',this)">😮‍💨 Anxiety</button>
+  <button class="filter-btn" data-cat="Confidence" onclick="filterBy('Confidence',this)">💪 Confidence</button>
+  <button class="filter-btn" data-cat="Weight" onclick="filterBy('Weight',this)">⚖️ Weight</button>
+  <button class="filter-btn" data-cat="Habits" onclick="filterBy('Habits',this)">🔄 Habits</button>
+  <button class="filter-btn" data-cat="Healing" onclick="filterBy('Healing',this)">🌿 Healing</button>
+  <button class="filter-btn" data-cat="Performance" onclick="filterBy('Performance',this)">🎯 Performance</button>
+</div>
+
+<div class="library">
+  <div class="grid" id="grid">
+    <!-- Skeleton loaders -->
+    <div class="skeleton"><div class="skel-cover"></div><div class="skel-line"></div><div class="skel-line short"></div><div class="skel-line" style="margin-bottom:1.2rem"></div></div>
+    <div class="skeleton"><div class="skel-cover"></div><div class="skel-line"></div><div class="skel-line short"></div><div class="skel-line" style="margin-bottom:1.2rem"></div></div>
+    <div class="skeleton"><div class="skel-cover"></div><div class="skel-line"></div><div class="skel-line short"></div><div class="skel-line" style="margin-bottom:1.2rem"></div></div>
+  </div>
+
+  <!-- Bundle -->
+  <div class="bundle" id="bundle" style="display:none">
+    <h2>The Complete <em>Recording Library</em></h2>
+    <p>Get every recording Kelly has created — plus all future releases — for one simple price.</p>
+    <div class="bundle-price">
+      <div class="price-tag"><div class="amount" id="bundle-single-price">$19</div><div class="label">Per recording</div></div>
+      <div class="price-divider">or</div>
+      <div class="price-tag"><div class="amount" id="bundle-price">$97</div><div class="label">Full library bundle</div></div>
+    </div>
+    <a href="#" id="bundle-link" class="btn-bundle" target="_blank">Get the Full Library →</a>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-logo">Kelly Hull Hypnotherapy</div>
+  <div class="footer-sub">Certified Clinical &amp; Transpersonal Hypnotherapy</div>
+  <ul class="footer-links">
+    <li><a href="index.html">Home</a></li>
+    <li><a href="index.html#services">Services</a></li>
+    <li><a href="index.html#booking">Book a Session</a></li>
+    <li><a href="index.html#contact">Contact</a></li>
+  </ul>
+  <div class="footer-copy">&copy; 2025 Kelly Hull Hypnotherapy · All recordings for personal use only · Not for redistribution</div>
+</footer>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// CONFIG — paste your Supabase values here
+// (copy from admin.html setup after creating your project)
+// ═══════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://lwvzppxstpcvqkscgxzz.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_tFEm62uoKqOwY2TqYZZk1g_8636a87R';
+
+const CAT_META = {
+  'Sleep':       { emoji:'🌙', bg:'#e8e0f5', tag:'bg:#d9cef0;color:#5a3fa0' },
+  'Anxiety':     { emoji:'😮‍💨', bg:'#e8f0e6', tag:'bg:#d0e8cc;color:#2d5228' },
+  'Confidence':  { emoji:'💪', bg:'#fdf3e3', tag:'bg:#f8e5c0;color:#7a4a10' },
+  'Weight':      { emoji:'⚖️', bg:'#f5e8e8', tag:'bg:#f0d8d8;color:#7a2828' },
+  'Habits':      { emoji:'🔄', bg:'#e3f5f5', tag:'bg:#c8eded;color:#185050' },
+  'Healing':     { emoji:'🌿', bg:'#e8f4e8', tag:'bg:#d0ecce;color:#1e4a1e' },
+  'Performance': { emoji:'🎯', bg:'#fdeee3', tag:'bg:#f8dfc8;color:#7a3810' },
+  'General':     { emoji:'✨', bg:'#ede8f7', tag:'bg:#d9cef0;color:#5a3fa0' },
+};
+
+let allRecordings = [];
+let activeCategory = 'All';
+let activeAudio = null;
+
+async function init() {
+  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+    renderPlaceholders();
+    return;
+  }
+  try {
+    const { createClient } = supabase;
+    const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data, error } = await sb
+      .from('recordings')
+      .select('*')
+      .eq('is_published', true)
+      .order('is_featured', { ascending: false })
+      .order('sort_order')
+      .order('created_at');
+    if (error) throw error;
+    allRecordings = data || [];
+    renderGrid(allRecordings);
+    updateStats();
+    setupBundle(sb);
+  } catch(e) {
+    console.error(e);
+    renderPlaceholders();
+  }
+}
+
+async function setupBundle(sb) {
+  const { data } = await sb.from('bundle_settings').select('*').limit(1).maybeSingle();
+  const bundle = document.getElementById('bundle');
+  if (allRecordings.length >= 3) {
+    bundle.style.display = 'block';
+    if (data) {
+      document.getElementById('bundle-price').textContent = '$' + data.price;
+      document.getElementById('bundle-link').href = data.purchase_url || '#';
+    }
+  }
+}
+
+function updateStats() {
+  document.getElementById('stat-count').textContent = allRecordings.length;
+}
+
+function filterBy(cat, btn) {
+  activeCategory = cat;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const filtered = cat === 'All' ? allRecordings : allRecordings.filter(r => r.category === cat);
+  renderGrid(filtered);
+}
+
+function renderGrid(recordings) {
+  const grid = document.getElementById('grid');
+  if (!recordings.length) {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🎧</div><h3>No recordings yet in this category</h3><p>Check back soon — Kelly adds new recordings regularly.</p></div>`;
+    return;
+  }
+  grid.innerHTML = recordings.map(r => cardHTML(r)).join('');
+}
+
+function cardHTML(r) {
+  const meta = CAT_META[r.category] || CAT_META['General'];
+  const tagStyle = meta.tag.replace('bg:', 'background:').replace(';color:', ';color:');
+  const previewBtn = r.preview_url
+    ? `<button class="btn-preview" onclick="togglePreview('${r.id}')">▷ Preview</button>`
+    : '';
+  return `
+  <div class="card" id="card-${r.id}">
+    <div class="card-cover" style="background:${meta.bg}">
+      ${r.is_featured ? '<span class="card-featured">★ Featured</span>' : ''}
+      <span class="card-badge">${r.duration_minutes} min</span>
+      <span style="font-size:2.8rem">${r.cover_emoji || meta.emoji}</span>
+    </div>
+    ${r.preview_url ? `<div class="audio-wrap" id="audio-${r.id}"><audio id="player-${r.id}" src="${r.preview_url}" preload="none"></audio></div>` : ''}
+    <div class="card-body">
+      <div class="card-title">${r.title}</div>
+      <div class="card-desc">${r.description}</div>
+      <div class="card-meta">
+        <span class="meta-pill" style="${tagStyle}">${r.category}</span>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="price">$${parseFloat(r.price_usd).toFixed(0)}</div>
+      ${previewBtn}
+      <a href="${r.purchase_url || '#'}" target="_blank" class="btn-buy">Buy →</a>
+    </div>
+  </div>`;
+}
+
+function togglePreview(id) {
+  const wrap = document.getElementById('audio-' + id);
+  const player = document.getElementById('player-' + id);
+  const btn = document.querySelector(`#card-${id} .btn-preview`);
+  const isOpen = wrap.classList.contains('open');
+  // Close any other open player
+  if (activeAudio && activeAudio !== id) {
+    const prev = document.getElementById('audio-' + activeAudio);
+    const prevPlayer = document.getElementById('player-' + activeAudio);
+    const prevBtn = document.querySelector(`#card-${activeAudio} .btn-preview`);
+    if (prev) prev.classList.remove('open');
+    if (prevPlayer) { prevPlayer.pause(); prevPlayer.currentTime = 0; }
+    if (prevBtn) prevBtn.textContent = '▷ Preview';
+  }
+  if (isOpen) {
+    wrap.classList.remove('open');
+    player.pause();
+    btn.textContent = '▷ Preview';
+    activeAudio = null;
+  } else {
+    wrap.classList.add('open');
+    player.play();
+    btn.textContent = '⏸ Pause';
+    activeAudio = id;
+  }
+}
+
+function renderPlaceholders() {
+  const placeholders = [
+    { id:'p1', title:'Deep Sleep & Restoration', description:'A gentle journey into the deepest levels of rest. Wake up feeling truly restored.', category:'Sleep', duration_minutes:25, price_usd:19, cover_emoji:'🌙', is_featured:true, purchase_url:'#', preview_url:null },
+    { id:'p2', title:'Release Anxiety Now', description:'Quiet the mental chatter and teach your nervous system what calm truly feels like.', category:'Anxiety', duration_minutes:20, price_usd:19, cover_emoji:'😮‍💨', is_featured:false, purchase_url:'#', preview_url:null },
+    { id:'p3', title:'Morning Confidence Reset', description:'Begin your day from a place of genuine self-belief. A powerful 15-minute morning ritual.', category:'Confidence', duration_minutes:15, price_usd:19, cover_emoji:'💪', is_featured:false, purchase_url:'#', preview_url:null },
+    { id:'p4', title:'Healthy Body, Peaceful Mind', description:'Reshape your relationship with food and your body from the inside out.', category:'Weight', duration_minutes:25, price_usd:19, cover_emoji:'⚖️', is_featured:false, purchase_url:'#', preview_url:null },
+    { id:'p5', title:'Becoming a Non-Smoker', description:'Reinforce your identity as a non-smoker. Best used alongside a cessation session.', category:'Habits', duration_minutes:20, price_usd:19, cover_emoji:'🚭', is_featured:false, purchase_url:'#', preview_url:null },
+    { id:'p6', title:'Deep Healing & Renewal', description:'A restorative session for emotional healing, grief, and finding your way back to yourself.', category:'Healing', duration_minutes:30, price_usd:19, cover_emoji:'🌿', is_featured:false, purchase_url:'#', preview_url:null },
+  ];
+  allRecordings = placeholders;
+  document.getElementById('stat-count').textContent = placeholders.length + '+';
+  renderGrid(placeholders);
+  document.getElementById('bundle').style.display = 'block';
+}
+
+init();
+</script>
+</body>
+</html>
