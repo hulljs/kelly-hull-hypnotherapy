@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Admin · Kelly Hull Hypnotherapy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/*
+════════════════════════════════════════════════════════════
+  SUPABASE SETUP — DO THIS ONCE (takes ~10 minutes)
+════════════════════════════════════════════════════════════
+  1. Go to supabase.com → sign up free → New Project
+  2. Name it "kelly-hypnotherapy", pick a region, set a DB password
+  3. Once created, go to SQL Editor → New Query → paste and run:
+
+    create extension if not exists "uuid-ossp";
+
+    create table public.recordings (
+      id uuid default uuid_generate_v4() primary key,
+      title text not null,
+      description text not null default '',
+      category text not null default 'General',
+      duration_minutes numeric(4,1) not null default 20,
+      price_usd numeric(5,2) not null default 19.00,
+      purchase_url text not null default '',
+      preview_path text default null,
+      cover_emoji text default '✨',
+      is_published boolean not null default false,
+      is_featured boolean not null default false,
+      sort_order integer not null default 0,
+      created_at timestamptz default now()
+    );
+
+    alter table public.recordings enable row level security;
+    create policy "public_read" on public.recordings for select using (is_published = true);
+    create policy "auth_all" on public.recordings for all using (auth.role() = 'authenticated');
+
+    create table public.bundle_settings (
+      id uuid default uuid_generate_v4() primary key,
+      price numeric(5,2) default 97,
+      purchase_url text default ''
+    );
+    alter table public.bundle_settings enable row level security;
+    create policy "public_read_bundle" on public.bundle_settings for select using (true);
+    create policy "auth_all_bundle" on public.bundle_settings for all using (auth.role() = 'authenticated');
+    -- Also run this for the social media daily posts tracker:
+    create table public.quote_posts (
+      day_offset integer primary key,
+      quote_id integer,
+      status text default 'pending',
+      scheduled_date date,
+      posted_at timestamptz,
+      edited_text text,
+      created_at timestamptz default now()
+    );
+    alter table public.quote_posts enable row level security;
+    create policy "auth_all_qp" on public.quote_posts for all using (auth.role() = 'authenticated');
+
+    insert into public.bundle_settings (price, purchase_url) values (97, '');
+
+    insert into storage.buckets (id, name, public) values ('previews', 'previews', true);
+    create policy "public_preview_read" on storage.objects for select using (bucket_id = 'previews');
+    create policy "auth_preview_upload" on storage.objects for insert with check (bucket_id = 'previews' and auth.role() = 'authenticated');
+    create policy "auth_preview_delete" on storage.objects for delete using (bucket_id = 'previews' and auth.role() = 'authenticated');
+
+  4. Go to Project Settings → API → copy:
+     - Project URL  →  paste as SUPABASE_URL below
+     - anon public key  →  paste as SUPABASE_ANON_KEY below
+     (also paste both into recordings.html)
+
+  5. Go to Authentication → Users → Invite User → enter Kelly's email
+     She'll receive a link to set her password for this admin panel.
+
+  6. Redeploy both admin.html and recordings.html to Netlify.
+════════════════════════════════════════════════════════════
+*/
+:root{
+  --p:#7c5cbf;--p-lt:#ede8f7;--p-mid:#a98dd6;--p-dk:#5a3fa0;
+  --sage:#4a6b45;--sage-lt:#e8f0e6;
+  --dark:#1a1a2e;--mid:#4a3f6b;--light:#8a7ea0;
+  --bg:#f7f5fc;--white:#fff;--bdr:#d9cef0;
+  --red:#c04040;--red-lt:#fdf0f0;
+  --green:#2d7a2d;--green-lt:#edf7ed;
+  --serif:'Cormorant Garamond',serif;--sans:'Nunito',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);color:var(--dark);min-height:100vh}
+
+/* ── LOGIN ── */
+#loginView{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem}
+.login-card{background:var(--white);border-radius:20px;padding:2.5rem;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(124,92,191,.15);border:1px solid var(--bdr)}
+.login-logo{font-family:var(--serif);font-size:1.4rem;color:var(--p);text-align:center;margin-bottom:.3rem}
+.login-sub{text-align:center;font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--light);margin-bottom:2rem}
+.login-err{background:var(--red-lt);color:var(--red);padding:.7rem 1rem;border-radius:8px;font-size:.85rem;margin-bottom:1rem;display:none}
+
+/* ── DASHBOARD ── */
+#dashView{display:none}
+.topbar{background:var(--white);border-bottom:1px solid var(--bdr);padding:.9rem 2rem;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50}
+.topbar-logo{font-family:var(--serif);font-size:1.1rem;color:var(--p)}
+.topbar-right{display:flex;align-items:center;gap:1rem}
+.topbar-user{font-size:.82rem;color:var(--light)}
+.main{max-width:1100px;margin:0 auto;padding:2rem 1.5rem}
+
+/* ── STATS ── */
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1rem;margin-bottom:2rem}
+.stat-card{background:var(--white);border-radius:12px;padding:1.2rem;border:1px solid var(--bdr);text-align:center}
+.stat-card .num{font-family:var(--serif);font-size:2rem;color:var(--p);font-weight:500}
+.stat-card .lbl{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--light);margin-top:.2rem}
+
+/* ── TOOLBAR ── */
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:.75rem}
+.toolbar h2{font-family:var(--serif);font-size:1.4rem;color:var(--dark)}
+
+/* ── BUTTONS ── */
+.btn{padding:.55rem 1.2rem;border-radius:8px;font-family:var(--sans);font-size:.85rem;font-weight:600;cursor:pointer;border:none;transition:all .2s}
+.btn-primary{background:var(--p);color:var(--white)}
+.btn-primary:hover{background:var(--p-mid)}
+.btn-sm{padding:.35rem .8rem;font-size:.78rem;border-radius:6px}
+.btn-ghost{background:transparent;color:var(--mid);border:1.5px solid var(--bdr)}
+.btn-ghost:hover{background:var(--p-lt);color:var(--p);border-color:var(--p-mid)}
+.btn-danger{background:transparent;color:var(--red);border:1.5px solid rgba(192,64,64,.3)}
+.btn-danger:hover{background:var(--red-lt)}
+.btn-logout{background:transparent;color:var(--light);border:1.5px solid var(--bdr);padding:.4rem .9rem;border-radius:8px;font-family:var(--sans);font-size:.8rem;cursor:pointer}
+
+/* ── TABLE ── */
+.tbl-wrap{background:var(--white);border-radius:14px;border:1px solid var(--bdr);overflow:hidden;overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:700px}
+th{background:var(--p-lt);color:var(--p);font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.75rem 1rem;text-align:left;white-space:nowrap}
+td{padding:.75rem 1rem;font-size:.85rem;border-top:1px solid var(--bdr);color:var(--mid);vertical-align:middle}
+tr:hover td{background:rgba(237,232,247,.4)}
+.td-title{font-weight:600;color:var(--dark);max-width:220px}
+.td-title small{display:block;font-weight:300;color:var(--light);font-size:.75rem;margin-top:.1rem}
+.cat-pill{display:inline-block;font-size:.65rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:.2rem .55rem;border-radius:10px;background:var(--p-lt);color:var(--p)}
+.toggle{position:relative;display:inline-block;width:38px;height:20px;cursor:pointer}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:#ddd;border-radius:20px;transition:.3s}
+.toggle-slider::before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:var(--white);border-radius:50%;transition:.3s}
+.toggle input:checked + .toggle-slider{background:var(--p)}
+.toggle input:checked + .toggle-slider::before{transform:translateX(18px)}
+.actions{display:flex;gap:.4rem;white-space:nowrap}
+
+/* ── MODAL ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:1rem}
+.modal-bg.open{display:flex}
+.modal{background:var(--white);border-radius:18px;width:100%;max-width:620px;max-height:92vh;overflow-y:auto;padding:2rem;box-shadow:0 24px 64px rgba(0,0,0,.2)}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem}
+.modal-title{font-family:var(--serif);font-size:1.3rem;color:var(--dark)}
+.modal-close{background:none;border:none;font-size:1.4rem;color:var(--light);cursor:pointer;line-height:1}
+.modal-close:hover{color:var(--dark)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.form-group{display:flex;flex-direction:column;gap:.35rem}
+.form-group.full{grid-column:1/-1}
+.form-group label{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mid)}
+.form-group input,.form-group select,.form-group textarea{padding:.65rem .9rem;border-radius:8px;border:1.5px solid var(--bdr);font-family:var(--sans);font-size:.88rem;color:var(--dark);background:var(--white);outline:none;transition:border-color .2s}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--p-mid);box-shadow:0 0 0 3px rgba(169,141,214,.12)}
+.form-group textarea{resize:vertical;min-height:80px}
+.toggle-row{display:flex;gap:2rem;align-items:center;padding:.5rem 0}
+.toggle-row label{display:flex;align-items:center;gap:.6rem;font-size:.85rem;color:var(--mid);cursor:pointer}
+
+/* ── UPLOAD ZONE ── */
+.upload-zone{border:2px dashed var(--bdr);border-radius:10px;padding:1.5rem;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;position:relative}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--p-mid);background:var(--p-lt)}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-zone-icon{font-size:1.8rem;margin-bottom:.4rem}
+.upload-zone p{font-size:.83rem;color:var(--light)}
+.upload-zone strong{color:var(--p)}
+.progress-wrap{margin-top:.75rem;display:none}
+.progress-bar{height:6px;background:var(--bdr);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:var(--p);border-radius:3px;transition:width .3s;width:0%}
+.progress-label{font-size:.75rem;color:var(--light);margin-top:.3rem}
+.file-chosen{font-size:.8rem;color:var(--sage);margin-top:.5rem;font-weight:600}
+
+/* ── FORMS ── */
+.form-actions{display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--bdr)}
+
+/* ── BUNDLE CARD ── */
+.bundle-card{background:var(--white);border-radius:14px;border:1px solid var(--bdr);padding:1.5rem;margin-top:2rem}
+.bundle-card h3{font-family:var(--serif);font-size:1.1rem;margin-bottom:1rem;color:var(--dark)}
+.bundle-form{display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-end}
+.bundle-form .form-group{flex:1;min-width:180px}
+
+/* ── MISC ── */
+.empty-state{text-align:center;padding:3rem;color:var(--light)}
+.empty-state p{font-size:.9rem;margin-top:.5rem}
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--dark);color:var(--white);padding:.75rem 1.3rem;border-radius:10px;font-size:.85rem;z-index:999;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.success{background:var(--sage)}
+.toast.error{background:var(--red)}
+
+@media(max-width:600px){.form-grid{grid-template-columns:1fr}.main{padding:1rem}}
+
+  /* ── TABS ── */
+  .tab-nav{display:flex;gap:0;border-bottom:2px solid var(--bdr);margin-bottom:0}
+  .tab-btn{padding:.65rem 1.4rem;font-family:var(--sans);font-size:.85rem;font-weight:600;color:var(--light);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s}
+  .tab-btn.active{color:var(--p);border-bottom-color:var(--p)}
+  .tab-btn:hover:not(.active){color:var(--mid)}
+  .tab-pane{display:none}.tab-pane.active{display:block}
+  /* ── SOCIAL ── */
+  .quote-card{background:linear-gradient(135deg,#f0eafa,#faf7f2);border:1px solid var(--bdr);border-radius:16px;padding:2rem;margin-bottom:1.5rem}
+  .quote-day{font-size:.72rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--p);margin-bottom:.8rem}
+  .quote-text{font-family:'Cormorant Garamond',serif;font-size:1.25rem;color:var(--dark);line-height:1.6;margin-bottom:.8rem;font-style:italic}
+  .quote-author{font-size:.85rem;color:var(--light);font-weight:600;margin-bottom:.5rem}
+  .quote-cat{display:inline-block;font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.2rem .6rem;border-radius:10px;background:var(--p-lt);color:var(--p)}
+  .post-preview{background:var(--white);border:1.5px solid var(--bdr);border-radius:12px;padding:1.2rem;margin-bottom:1rem}
+  .post-preview-label{font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--light);margin-bottom:.6rem;display:flex;justify-content:space-between}
+  .post-preview textarea{width:100%;border:none;outline:none;font-family:var(--sans);font-size:.88rem;color:var(--dark);line-height:1.65;resize:vertical;min-height:140px;background:transparent}
+  .char-count{font-size:.75rem;color:var(--light);text-align:right;margin-top:.4rem}
+  .char-count.warn{color:#c07800}.char-count.over{color:var(--red)}
+  .post-actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;align-items:center}
+  .btn-post{background:linear-gradient(135deg,var(--p),var(--p-dk));color:var(--white);padding:.7rem 1.6rem;border-radius:10px;font-family:var(--sans);font-weight:700;font-size:.9rem;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(124,92,191,.3);transition:all .2s}
+  .btn-post:hover{transform:translateY(-1px)}.btn-post:disabled{opacity:.5;cursor:default;transform:none}
+  .btn-approve{background:var(--sage-lt);color:var(--sage);border:1.5px solid rgba(74,107,69,.3);padding:.7rem 1.3rem;border-radius:10px;font-family:var(--sans);font-weight:600;font-size:.85rem;cursor:pointer;transition:all .2s}
+  .btn-approve:hover{background:#d8eed8}
+  .btn-skip{background:transparent;color:var(--light);border:1.5px solid var(--bdr);padding:.7rem 1.1rem;border-radius:10px;font-family:var(--sans);font-weight:500;font-size:.85rem;cursor:pointer;transition:all .2s}
+  .btn-skip:hover{color:var(--mid);border-color:var(--mid)}
+  .day-nav{display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap}
+  .day-nav-btn{background:var(--white);border:1.5px solid var(--bdr);border-radius:8px;padding:.45rem .9rem;font-size:.82rem;cursor:pointer;color:var(--mid);font-family:var(--sans);transition:all .2s}
+  .day-nav-btn:hover{border-color:var(--p-mid);color:var(--p)}
+  .day-label{font-size:.88rem;font-weight:600;color:var(--dark);flex:1;text-align:center}
+  .status-badge{display:inline-flex;align-items:center;gap:.3rem;font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:.25rem .7rem;border-radius:20px}
+  .status-pending{background:#f5f0ff;color:var(--p)}.status-approved{background:var(--sage-lt);color:var(--sage)}
+  .status-posted{background:#e8f4e8;color:#1a5a1a}.status-skipped{background:var(--bg);color:var(--light)}
+  .hashtag-wrap{margin-bottom:1rem}
+  .hashtag-wrap label{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mid);display:block;margin-bottom:.4rem}
+  .hashtag-wrap input{width:100%;padding:.6rem .9rem;border:1.5px solid var(--bdr);border-radius:8px;font-family:var(--sans);font-size:.82rem;color:var(--dark);outline:none;background:var(--white)}
+  .hashtag-wrap input:focus{border-color:var(--p-mid)}
+  .setup-banner{background:linear-gradient(135deg,#1a0a2e,#2d1a4a);border-radius:14px;padding:1.5rem;margin-bottom:1.5rem;color:rgba(255,255,255,.8);font-size:.85rem;line-height:1.8}
+  .setup-banner h3{font-family:'Cormorant Garamond',serif;font-size:1.1rem;color:#fff;margin-bottom:.6rem}
+  .setup-banner code{background:rgba(255,255,255,.15);padding:.15rem .4rem;border-radius:4px;font-size:.8rem;color:#d9cef0}
+  .setup-banner ol{padding-left:1.3rem}
+
+</style>
+</head>
+<body>
+
+<!-- LOGIN VIEW -->
+<div id="loginView">
+  <div class="login-card">
+    <div class="login-logo">Kelly Hull Hypnotherapy</div>
+    <div class="login-sub">Admin Dashboard</div>
+    <div class="login-err" id="loginErr"></div>
+    <div class="form-group" style="margin-bottom:.9rem">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="kelly@kellyhullhypnotherapy.com"/>
+    </div>
+    <div class="form-group" style="margin-bottom:1.2rem">
+      <label>Password</label>
+      <input type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"/>
+    </div>
+    <button class="btn btn-primary" style="width:100%;padding:.75rem" onclick="doLogin()">Sign In →</button>
+    <p style="text-align:center;margin-top:1rem;font-size:.75rem;color:var(--light)">Access is by invitation only.<br/>Contact Jason to set up your account.</p>
+  </div>
+</div>
+
+<!-- DASHBOARD VIEW -->
+<div id="dashView">
+  <div class="topbar">
+    <div class="topbar-logo">🌿 Recordings Admin</div>
+    <div class="topbar-right">
+      <span class="topbar-user" id="userEmail"></span>
+      <button class="btn-logout" onclick="doLogout()">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- TAB NAV -->
+  <div style="background:var(--white);border-bottom:1px solid var(--bdr);padding:0 2rem;position:sticky;top:57px;z-index:49">
+    <div class="tab-nav">
+      <button class="tab-btn active" id="tabBtnRec" onclick="switchTab('recordings',this)">🎙 Recordings</button>
+      <button class="tab-btn" id="tabBtnSoc" onclick="switchTab('social',this)">📱 Daily Posts</button>
+    </div>
+  </div>
+
+  <!-- RECORDINGS PANE -->
+  <div class="tab-pane active" id="tab-recordings">
+  <div class="main">
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card"><div class="num" id="st-total">—</div><div class="lbl">Total Recordings</div></div>
+      <div class="stat-card"><div class="num" id="st-pub">—</div><div class="lbl">Published</div></div>
+      <div class="stat-card"><div class="num" id="st-draft">—</div><div class="lbl">Drafts</div></div>
+      <div class="stat-card"><div class="num" id="st-featured">—</div><div class="lbl">Featured</div></div>
+    </div>
+
+    <!-- Recordings table -->
+    <div class="toolbar">
+      <h2>Recordings Library</h2>
+      <button class="btn btn-primary" onclick="openModal()">+ Add Recording</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Recording</th><th>Category</th><th>Duration</th><th>Price</th>
+          <th>Preview</th><th>Published</th><th>Featured</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="recTable"><tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--light)">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- Bundle settings -->
+    <div class="bundle-card">
+      <h3>📦 Full Library Bundle Settings</h3>
+      <div class="bundle-form">
+        <div class="form-group"><label>Bundle Price ($)</label><input type="number" id="bundlePrice" placeholder="97" min="0" step="1"/></div>
+        <div class="form-group" style="flex:2"><label>Payhip/Gumroad Bundle URL</label><input type="url" id="bundleUrl" placeholder="https://payhip.com/b/..."/></div>
+        <button class="btn btn-primary btn-sm" onclick="saveBundle()" style="margin-bottom:1px">Save Bundle</button>
+      </div>
+    </div>
+  </div>
+  </div><!-- /main -->
+  </div><!-- /tab-recordings -->
+
+  <!-- SOCIAL PANE -->
+  <div class="tab-pane" id="tab-social">
+    <div class="main" id="socialMain" style="max-width:760px"><!-- rendered by JS --></div>
+  </div>
+
+</div><!-- /dashView -->
+
+<!-- ADD / EDIT MODAL -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Add New Recording</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Title *</label><input type="text" id="fTitle" placeholder="e.g. Deep Sleep & Restoration"/></div>
+      <div class="form-group full"><label>Description *</label><textarea id="fDesc" placeholder="What will this recording help the listener achieve? (2–3 sentences)"></textarea></div>
+      <div class="form-group">
+        <label>Category *</label>
+        <select id="fCat" onchange="suggestEmoji()">
+          <option value="Sleep">🌙 Sleep</option>
+          <option value="Anxiety">😮‍💨 Anxiety</option>
+          <option value="Confidence">💪 Confidence</option>
+          <option value="Weight">⚖️ Weight</option>
+          <option value="Habits">🔄 Habits</option>
+          <option value="Healing">🌿 Healing</option>
+          <option value="Performance">🎯 Performance</option>
+          <option value="General">✨ General</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Cover Emoji</label>
+        <input type="text" id="fEmoji" placeholder="e.g. 🌙 💪 😮‍💨" autocomplete="off" autocorrect="off" style="font-size:1.2rem"/>
+      </div>
+      <div class="form-group">
+        <label>Duration (minutes) *</label>
+        <input type="number" id="fDuration" placeholder="20" min="5" max="90" step="0.5"/>
+      </div>
+      <div class="form-group">
+        <label>Price (USD) *</label>
+        <input type="number" id="fPrice" placeholder="19" min="0" step="1"/>
+      </div>
+      <div class="form-group full">
+        <label>Payhip / Gumroad Purchase URL *</label>
+        <input type="url" id="fPurchaseUrl" placeholder="https://payhip.com/b/..."/>
+      </div>
+      <div class="form-group full">
+        <label>Preview Clip (MP3, 2–4 min recommended)</label>
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="fPreview" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg,.mp4" onchange="onFileChosen(this)"/>
+          <div class="upload-zone-icon">🎵</div>
+          <p><strong>Click to upload</strong> or drag & drop</p>
+          <p style="font-size:.75rem;margin-top:.2rem">MP3, M4A, WAV, AAC · Max 25MB · Preview clips only (not the full recording)</p>
+          <div class="file-chosen" id="fileChosen" style="display:none"></div>
+        </div>
+        <div class="progress-wrap" id="progressWrap">
+          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+          <div class="progress-label" id="progressLabel">Uploading…</div>
+        </div>
+        <div id="existingPreview" style="margin-top:.5rem;font-size:.8rem;color:var(--light);display:none">
+          <span id="existingPreviewLabel"></span>
+          &nbsp;<button class="btn btn-ghost btn-sm" id="existingPreviewDownload" onclick="" style="font-size:.72rem;padding:.2rem .6rem">⬇ Download for Payhip</button>
+        </div>
+      </div>
+      <div class="form-group full">
+        <div class="toggle-row">
+          <label style="display:flex;align-items:flex-start;gap:.5rem;cursor:pointer">
+            <input type="checkbox" id="fPublished" onchange="checkPublishReady();document.getElementById('saveBtn').textContent=this.checked?'Save &amp; Publish':'Save Draft'"/>
+            <span>Publish immediately (visible on the website)
+              <span id="publishWarning" style="display:none;color:var(--red);font-size:.78rem;font-weight:600;display:block;margin-top:.2rem"></span>
+            </span>
+          </label>
+          <label><input type="checkbox" id="fFeatured"/> Featured (shown first &amp; starred)</label>
+        </div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="saveBtn" onclick="saveRecording()">Save Draft</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+// PASTE YOUR SUPABASE VALUES HERE
+// (same values go in recordings.html)
+// ══════════════════════════════════════════════
+const SUPABASE_URL      = 'https://lwvzppxstpcvqkscgxzz.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_tFEm62uoKqOwY2TqYZZk1g_8636a87R';
+// ══════════════════════════════════════════════
+
+let sb, currentUser, editingId = null, allRecs = [];
+
+async function boot() {
+  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+    showToast('⚠️ Add your Supabase URL and key to admin.html first', 'error', 6000);
+    return;
+  }
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) showDash(session.user);
+
+  sb.auth.onAuthStateChange((event, session) => {
+    if (session) showDash(session.user);
+    else showLogin();
+  });
+}
+
+function showLogin() {
+  document.getElementById('loginView').style.display = 'flex';
+  document.getElementById('dashView').style.display = 'none';
+}
+function showDash(user) {
+  currentUser = user;
+  document.getElementById('loginView').style.display = 'none';
+  document.getElementById('dashView').style.display = 'block';
+  document.getElementById('userEmail').textContent = user.email;
+  loadRecordings();
+  loadBundle();
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPass').value;
+  const err   = document.getElementById('loginErr');
+  err.style.display = 'none';
+  if (!email || !pass) { err.textContent = 'Please enter your email and password.'; err.style.display = 'block'; return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { err.textContent = error.message; err.style.display = 'block'; }
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  showLogin();
+}
+
+async function loadRecordings() {
+  const { data, error } = await sb.from('recordings').select('*').order('sort_order').order('created_at');
+  if (error) { showToast('Error loading recordings: ' + error.message, 'error'); return; }
+  allRecs = data || [];
+  renderTable();
+  updateStats();
+}
+
+function updateStats() {
+  document.getElementById('st-total').textContent = allRecs.length;
+  document.getElementById('st-pub').textContent = allRecs.filter(r => r.is_published).length;
+  document.getElementById('st-draft').textContent = allRecs.filter(r => !r.is_published).length;
+  document.getElementById('st-featured').textContent = allRecs.filter(r => r.is_featured).length;
+}
+
+function renderTable() {
+  const tbody = document.getElementById('recTable');
+  if (!allRecs.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><p>No recordings yet.</p><p>Click "+ Add Recording" to get started.</p></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = allRecs.map(r => `
+    <tr>
+      <td class="td-title">${r.cover_emoji || '✨'} ${r.title}<small>${r.description.slice(0,60)}${r.description.length>60?'…':''}</small></td>
+      <td><span class="cat-pill">${r.category}</span></td>
+      <td>${r.duration_minutes} min</td>
+      <td>$${parseFloat(r.price_usd).toFixed(0)}</td>
+      <td>${r.preview_path ? '<span style="color:var(--sage);font-size:.8rem">✓ Uploaded</span>' : '<span style="color:var(--light);font-size:.78rem">None</span>'}</td>
+      <td><label class="toggle"><input type="checkbox" ${r.is_published?'checked':''} onchange="togglePublish('${r.id}',this)"/><span class="toggle-slider"></span></label></td>
+      <td><label class="toggle"><input type="checkbox" ${r.is_featured?'checked':''} onchange="toggleField('${r.id}','is_featured',this.checked)"/><span class="toggle-slider"></span></label></td>
+      <td><div class="actions">
+        <button class="btn btn-ghost btn-sm" onclick="editRecording('${r.id}')">Edit</button>
+        ${r.preview_path ? `<button class="btn btn-ghost btn-sm" onclick="downloadRecording('${r.preview_path}','${r.title.replace(/'/g,"\\'")}')" title="Download audio file">⬇ Download</button>` : '<button class="btn btn-ghost btn-sm" disabled style="opacity:.35" title="No audio uploaded yet">⬇ Download</button>'}
+        <button class="btn btn-danger btn-sm" onclick="deleteRecording('${r.id}','${r.title.replace(/'/g,"\\'")}')">Delete</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+async function toggleField(id, field, val) {
+  const { error } = await sb.from('recordings').update({ [field]: val }).eq('id', id);
+  if (error) { showToast('Update failed', 'error'); loadRecordings(); return; }
+  const rec = allRecs.find(r => r.id === id);
+  if (rec) rec[field] = val;
+  updateStats();
+  showToast(val ? '✓ Updated' : '✓ Updated', 'success');
+}
+
+// ── MODAL ───────────────────────────────────────────────
+function openModal(id = null) {
+  editingId = id;
+  document.getElementById('modalTitle').textContent = id ? 'Edit Recording' : 'Add New Recording';
+  document.getElementById('progressWrap').style.display = 'none';
+  document.getElementById('fileChosen').style.display = 'none';
+  document.getElementById('existingPreview').style.display = 'none';
+
+  if (id) {
+    const r = allRecs.find(x => x.id === id);
+    document.getElementById('fTitle').value = r.title;
+    document.getElementById('fDesc').value = r.description;
+    document.getElementById('fCat').value = r.category;
+    document.getElementById('fEmoji').value = r.cover_emoji || '';
+    document.getElementById('fDuration').value = r.duration_minutes;
+    document.getElementById('fPrice').value = r.price_usd;
+    document.getElementById('fPurchaseUrl').value = r.purchase_url;
+    document.getElementById('fPublished').checked = r.is_published;
+    document.getElementById('fFeatured').checked = r.is_featured;
+    if (r.preview_path) {
+      const ep = document.getElementById('existingPreview');
+      ep.style.display = 'block';
+      ep.innerHTML = `Current preview: <strong>${r.preview_path.split('/').pop()}</strong> — upload a new file to replace it`;
+    }
+  } else {
+    document.getElementById('fTitle').value = '';
+    document.getElementById('fDesc').value = '';
+    document.getElementById('fCat').value = 'Sleep';
+    document.getElementById('fEmoji').value = '';
+    suggestEmoji();
+    document.getElementById('fDuration').value = '20';
+    document.getElementById('fPrice').value = '19';
+    document.getElementById('fPurchaseUrl').value = '';
+    document.getElementById('fPublished').checked = false;
+    document.getElementById('fFeatured').checked = false;
+    document.getElementById('fPreview').value = '';
+  }
+  document.getElementById('modal').classList.add('open');
+}
+
+function editRecording(id) { openModal(id); }
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  editingId = null;
+}
+
+
+function suggestEmoji() {
+  const cat = document.getElementById('fCat').value;
+  const emojiField = document.getElementById('fEmoji');
+  // Only auto-suggest if field is empty
+  if (emojiField.value.trim()) return;
+  const map = {
+    'Sleep':'🌙','Anxiety':'😮‍💨','Confidence':'💪',
+    'Weight':'⚖️','Habits':'🔄','Healing':'🌿',
+    'Performance':'🎯','General':'✨'
+  };
+  emojiField.value = map[cat] || '✨';
+}
+
+
+function checkPublishReady() {
+  const checked     = document.getElementById('fPublished').checked;
+  const warning     = document.getElementById('publishWarning');
+  if (!checked) { warning.style.display = 'none'; return; }
+
+  const title       = document.getElementById('fTitle').value.trim();
+  const desc        = document.getElementById('fDesc').value.trim();
+  const duration    = document.getElementById('fDuration').value;
+  const price       = document.getElementById('fPrice').value;
+  const purchaseUrl = document.getElementById('fPurchaseUrl').value.trim();
+  const fileInput   = document.getElementById('fPreview');
+  const existingPreview = editingId ? allRecs.find(r => r.id === editingId)?.preview_path : null;
+
+  const missing = [];
+  if (!title)       missing.push('Title');
+  if (!desc)        missing.push('Description');
+  if (!duration)    missing.push('Duration');
+  if (!price)       missing.push('Price');
+  if (!purchaseUrl) missing.push('Purchase URL');
+  if (!fileInput.files[0] && !existingPreview) missing.push('Preview audio');
+
+  if (missing.length) {
+    warning.textContent = '⚠️ Still needed to publish: ' + missing.join(', ');
+    warning.style.display = 'block';
+  } else {
+    warning.textContent = '✓ All fields complete — ready to publish!';
+    warning.style.display = 'block';
+    warning.style.color = 'var(--sage)';
+  }
+}
+
+async function togglePublish(id, checkbox) {
+  // If turning ON, check all required fields are present
+  if (checkbox.checked) {
+    const rec = allRecs.find(r => r.id === id);
+    const missing = [];
+    if (!rec.title)        missing.push('Title');
+    if (!rec.description)  missing.push('Description');
+    if (!rec.duration_minutes) missing.push('Duration');
+    if (!rec.price_usd)    missing.push('Price');
+    if (!rec.purchase_url) missing.push('Purchase URL');
+    if (!rec.preview_path) missing.push('Preview audio');
+    if (missing.length) {
+      showToast('Cannot publish — missing: ' + missing.join(', '), 'error', 5000);
+      checkbox.checked = false;
+      return;
+    }
+  }
+  await toggleField(id, 'is_published', checkbox.checked);
+}
+
+
+function downloadRecording(url, title) {
+  if (!url) { showToast('No audio file uploaded for this recording', 'error'); return; }
+  // Create a temporary anchor and trigger download
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.m4a';
+  a.target = '_blank';
+  // For Supabase public URLs, open in new tab if direct download is blocked by CORS
+  try {
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast('Downloading ' + title + '…', 'success');
+  } catch(e) {
+    // Fallback — open in new tab
+    window.open(url, '_blank');
+  }
+}
+
+function onFileChosen(input) {
+  const fc = document.getElementById('fileChosen');
+  if (input.files[0]) {
+    fc.style.display = 'block';
+    const mb = (input.files[0].size / 1024 / 1024).toFixed(1);
+    fc.textContent = `✓ ${input.files[0].name} (${mb} MB)`;
+  }
+}
+
+async function saveRecording() {
+  const title       = document.getElementById('fTitle').value.trim();
+  const desc        = document.getElementById('fDesc').value.trim();
+  const cat         = document.getElementById('fCat').value;
+  const emoji       = document.getElementById('fEmoji').value.trim() || null;
+  const duration    = parseFloat(document.getElementById('fDuration').value);
+  const price       = parseFloat(document.getElementById('fPrice').value);
+  const purchaseUrl = document.getElementById('fPurchaseUrl').value.trim();
+  const published   = document.getElementById('fPublished').checked;
+  const featured    = document.getElementById('fFeatured').checked;
+  const fileInput   = document.getElementById('fPreview');
+
+  // Only validate if trying to publish — drafts can be saved with any fields
+  if (published) {
+    const existingPreview = editingId ? allRecs.find(r => r.id === editingId)?.preview_path : null;
+    const missing = [];
+    if (!title)       missing.push('Title');
+    if (!desc)        missing.push('Description');
+    if (!duration)    missing.push('Duration');
+    if (!price)       missing.push('Price');
+    if (!purchaseUrl) missing.push('Purchase URL');
+    if (!fileInput.files[0] && !existingPreview) missing.push('Preview audio');
+    if (missing.length) {
+      showToast('Cannot publish yet — missing: ' + missing.join(', '), 'error', 6000);
+      document.getElementById('fPublished').checked = false;
+      return;
+    }
+  }
+  // Drafts save freely — at least a file or title needed so it's not completely empty
+  if (!published && !title && !fileInput.files[0] && !editingId) {
+    showToast('Please add a title or upload an audio file to save', 'error');
+    return;
+  }
+
+  const saveBtn = document.getElementById('saveBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving…';
+
+  let previewPath = editingId ? allRecs.find(r => r.id === editingId)?.preview_path : null;
+
+  // Upload preview file if provided
+  if (fileInput.files[0]) {
+    const file = fileInput.files[0];
+    const safeName = title.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40);
+    const ext = file.name.split('.').pop() || 'm4a'; const path = `${safeName}-${Date.now()}.${ext}`;
+
+    document.getElementById('progressWrap').style.display = 'block';
+    document.getElementById('progressFill').style.width = '0%';
+    document.getElementById('progressLabel').textContent = 'Uploading preview…';
+
+    // Delete old preview if replacing
+    if (previewPath) await sb.storage.from('previews').remove([previewPath]);
+
+    const { data: upData, error: upErr } = await sb.storage.from('previews').upload(path, file, {
+      contentType: file.type || 'audio/mp4',
+      upsert: false,
+    });
+
+    if (upErr) {
+      showToast('Upload failed: ' + upErr.message, 'error');
+      saveBtn.disabled = false; saveBtn.textContent = 'Save Recording';
+      return;
+    }
+
+    document.getElementById('progressFill').style.width = '100%';
+    document.getElementById('progressLabel').textContent = 'Upload complete ✓';
+
+    // Get public URL
+    const { data: urlData } = sb.storage.from('previews').getPublicUrl(path);
+    previewPath = path;
+    // Store the full public URL in preview_path for easy use
+    previewPath = urlData.publicUrl;
+  }
+
+  const payload = {
+    title, description: desc, category: cat, cover_emoji: emoji,
+    duration_minutes: duration, price_usd: price, purchase_url: purchaseUrl,
+    preview_path: previewPath, is_published: published, is_featured: featured,
+  };
+
+  let error;
+  if (editingId) {
+    ({ error } = await sb.from('recordings').update(payload).eq('id', editingId));
+  } else {
+    ({ error } = await sb.from('recordings').insert(payload));
+  }
+
+  saveBtn.disabled = false; saveBtn.textContent = 'Save Recording';
+
+  if (error) { showToast('Save failed: ' + error.message, 'error'); return; }
+  showToast(editingId ? '✓ Recording updated' : '✓ Recording added', 'success');
+  closeModal();
+  loadRecordings();
+}
+
+async function deleteRecording(id, title) {
+  if (!confirm(`Delete "${title}"?\n\nThis will remove the recording from the library and delete any uploaded preview file. This cannot be undone.`)) return;
+  const rec = allRecs.find(r => r.id === id);
+  if (rec?.preview_path && rec.preview_path.includes('supabase')) {
+    const path = rec.preview_path.split('/previews/')[1];
+    if (path) await sb.storage.from('previews').remove([path]);
+  }
+  const { error } = await sb.from('recordings').delete().eq('id', id);
+  if (error) { showToast('Delete failed: ' + error.message, 'error'); return; }
+  showToast('✓ Recording deleted', 'success');
+  loadRecordings();
+}
+
+async function loadBundle() {
+  const { data } = await sb.from('bundle_settings').select('*').limit(1).maybeSingle();
+  if (data) {
+    document.getElementById('bundlePrice').value = data.price || 97;
+    document.getElementById('bundleUrl').value = data.purchase_url || '';
+  }
+}
+
+async function saveBundle() {
+  const price = parseFloat(document.getElementById('bundlePrice').value) || 97;
+  const url   = document.getElementById('bundleUrl').value.trim();
+  const { data: existing } = await sb.from('bundle_settings').select('id').limit(1).maybeSingle();
+  let error;
+  if (existing) {
+    ({ error } = await sb.from('bundle_settings').update({ price, purchase_url: url }).eq('id', existing.id));
+  } else {
+    ({ error } = await sb.from('bundle_settings').insert({ price, purchase_url: url }));
+  }
+  if (error) { showToast('Save failed: ' + error.message, 'error'); return; }
+  showToast('✓ Bundle settings saved', 'success');
+}
+
+function showToast(msg, type = '', dur = 3000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  setTimeout(() => t.className = 'toast', dur);
+}
+
+boot();
+
+// ═══════════════════════════════════════════
+// TAB SWITCHER
+// ═══════════════════════════════════════════
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'social') initSocialTab();
+}
+
+// ═══════════════════════════════════════════
+// QUOTES DATA
+// ═══════════════════════════════════════════
+const QUOTES=[
+  [1,'Your subconscious mind is working for you even when your conscious mind is at rest.','Milton H. Erickson','Subconscious Mind'],
+  [2,'The subconscious mind cannot tell the difference between a real and an imagined experience.','Milton H. Erickson','Subconscious Mind'],
+  [3,'Hypnosis is not sleep. It is a heightened state of focused awareness where change becomes effortless.','Dave Elman','Subconscious Mind'],
+  [4,'Every thought you think is a hypnotic suggestion to your subconscious mind.','Marisa Peer','Subconscious Mind'],
+  [5,'The mind is like an iceberg — what you see above the surface is only a fraction of its power.','Sigmund Freud','Subconscious Mind'],
+  [6,'Until you make the unconscious conscious, it will direct your life and you will call it fate.','Carl Jung','Subconscious Mind'],
+  [7,'Your inner world creates your outer world.','Bob Proctor','Subconscious Mind'],
+  [8,'The subconscious mind is the seat of all habits, emotions, and automatic behaviors.','Joseph Murphy','Subconscious Mind'],
+  [9,'Hypnosis bypasses the critical faculty of the mind to allow helpful suggestions to take root.','Dave Elman','Subconscious Mind'],
+  [10,'Whatever you impress upon your subconscious mind, it will move heaven and earth to bring into reality.','Joseph Murphy','Subconscious Mind'],
+  [11,'The mind that opens to a new idea never returns to its original size.','Albert Einstein','Subconscious Mind'],
+  [12,'You already have every answer you need — hypnosis simply helps you hear them.','Marisa Peer','Subconscious Mind'],
+  [13,'Change happens first in the mind, then in the world.','Hypnotherapy Wisdom','Subconscious Mind'],
+  [14,'Trance is a natural state. You enter it every night before sleep and every morning before waking.','Milton H. Erickson','Subconscious Mind'],
+  [15,'The subconscious does not argue. It simply accepts and acts.','Joseph Murphy','Subconscious Mind'],
+  [16,'In hypnosis, you are always in control — always aware, always safe.','Hypnotherapy Wisdom','Subconscious Mind'],
+  [17,'The mind is a garden. What you plant in it will grow.','Hypnotherapy Wisdom','Subconscious Mind'],
+  [18,'All hypnosis is self-hypnosis. The therapist is simply a guide.','Milton H. Erickson','Subconscious Mind'],
+  [19,'Your subconscious mind has no sense of humor and takes everything literally — choose your self-talk wisely.','Marisa Peer','Subconscious Mind'],
+  [20,'The imagined experience and the real experience produce the same neural pathways in the brain.','Joe Dispenza','Subconscious Mind'],
+  [21,'Hypnotherapy is not about putting thoughts in — it\'s about removing the ones that were never yours.','Hypnotherapy Wisdom','Subconscious Mind'],
+  [22,'Your conscious mind is the captain, but your subconscious mind is the crew running the ship.','Hypnotherapy Wisdom','Subconscious Mind'],
+  [23,'The brain cannot distinguish between a vivid imagination and reality — use that gift.','Joe Dispenza','Subconscious Mind'],
+  [24,'Deep in your subconscious lies the blueprint of your unlimited potential.','Hypnotherapy Wisdom','Subconscious Mind'],
+  [25,'Suggestion is the most powerful force in the universe — and you use it on yourself constantly.','Marisa Peer','Subconscious Mind'],
+  [26,'Whether you think you can or you think you can\'t, you\'re right.','Henry Ford','Mindset & Belief'],
+  [27,'Change your thoughts, change your world.','Norman Vincent Peale','Mindset & Belief'],
+  [28,'Beliefs are not facts. They are stories we have told ourselves so many times we forgot they were stories.','Hypnotherapy Wisdom','Mindset & Belief'],
+  [29,'The only limits in life are the ones you accept.','Les Brown','Mindset & Belief'],
+  [30,'A belief is just a thought you keep thinking.','Abraham Hicks','Mindset & Belief'],
+  [31,'Your beliefs become your thoughts. Your thoughts become your words. Your words become your destiny.','Mahatma Gandhi','Mindset & Belief'],
+  [32,'The moment you change your perception is the moment you rewrite the chemistry of your body.','Bruce Lipton','Mindset & Belief'],
+  [33,'Limiting beliefs were installed — and anything installed can be uninstalled.','Hypnotherapy Wisdom','Mindset & Belief'],
+  [34,'What we think, we become.','Buddha','Mindset & Belief'],
+  [35,'The greatest discovery of any generation is that a human can alter their life by altering their attitude.','William James','Mindset & Belief'],
+  [36,'You don\'t see the world as it is — you see the world as you are.','Anais Nin','Mindset & Belief'],
+  [37,'Every expert was once a beginner who refused to believe they couldn\'t do it.','Hypnotherapy Wisdom','Mindset & Belief'],
+  [38,'Your mind will believe what you tell it with feeling and repetition.','Napoleon Hill','Mindset & Belief'],
+  [39,'The mind is everything. What you think, you become.','Buddha','Mindset & Belief'],
+  [40,'Neuroplasticity proves the brain can change at any age. You are never too old to rewire.','Joe Dispenza','Mindset & Belief'],
+  [41,'Old beliefs are like old furniture — you can replace them with something that fits your life better.','Hypnotherapy Wisdom','Mindset & Belief'],
+  [42,'You become what you repeatedly tell yourself you are.','Marisa Peer','Mindset & Belief'],
+  [43,'Most people\'s biggest limitations live not in the world, but in their own heads.','Hypnotherapy Wisdom','Mindset & Belief'],
+  [44,'The mind is a powerful force. It can enslave us or empower us.','David Cuschieri','Mindset & Belief'],
+  [45,'What you focus on expands. Choose wisely.','Hypnotherapy Wisdom','Mindset & Belief'],
+  [46,'Progress begins the moment you challenge a belief that was never truly yours.','Hypnotherapy Wisdom','Mindset & Belief'],
+  [47,'A new thought, held with emotion, begins to reshape who you are.','Joe Dispenza','Mindset & Belief'],
+  [48,'Your self-image determines the outer image the world sees.','Maxwell Maltz','Mindset & Belief'],
+  [49,'The greatest weapon against stress is our ability to choose one thought over another.','William James','Mindset & Belief'],
+  [50,'Freedom begins when you realize your thoughts are not automatically true.','Hypnotherapy Wisdom','Mindset & Belief'],
+  [51,'The body heals with play, the mind heals with laughter, and the spirit heals with joy.','Proverb','Healing & Wellness'],
+  [52,'Healing is not linear. Be patient with yourself.','Hypnotherapy Wisdom','Healing & Wellness'],
+  [53,'The natural healing force within each of us is the greatest force in getting well.','Hippocrates','Healing & Wellness'],
+  [54,'You have within you right now everything you need to heal.','Louise Hay','Healing & Wellness'],
+  [55,'Every cell in your body is listening to your thoughts.','Deepak Chopra','Healing & Wellness'],
+  [56,'The body keeps the score — and the mind holds the key to the scoreboard.','Bessel van der Kolk','Healing & Wellness'],
+  [57,'Healing begins with a single decision: the decision to try.','Hypnotherapy Wisdom','Healing & Wellness'],
+  [58,'Your body knows how to heal. Your mind just needs to give it permission.','Hypnotherapy Wisdom','Healing & Wellness'],
+  [59,'The mind and body are not separate. What affects one, affects the other.','Hippocrates','Healing & Wellness'],
+  [60,'Wellness is not the absence of illness. It is the presence of vitality.','Hypnotherapy Wisdom','Healing & Wellness'],
+  [61,'You are not broken. You are in process.','Hypnotherapy Wisdom','Healing & Wellness'],
+  [62,'True healing addresses the root, not just the symptoms.','Hypnotherapy Wisdom','Healing & Wellness'],
+  [63,'The mind is the most powerful pharmacy in the world.','Deepak Chopra','Healing & Wellness'],
+  [64,'Our wounds are often the openings into the best and most beautiful parts of us.','David Richo','Healing & Wellness'],
+  [65,'Rest is not a reward. It is a requirement for healing.','Hypnotherapy Wisdom','Healing & Wellness'],
+  [66,'Love yourself enough to choose what truly heals you.','Louise Hay','Healing & Wellness'],
+  [67,'Healing is a journey back to yourself.','Hypnotherapy Wisdom','Healing & Wellness'],
+  [68,'The opposite of trauma is not the absence of pain. It is presence and connection.','Peter Levine','Healing & Wellness'],
+  [69,'Your nervous system is not the enemy. It learned to protect you.','Hypnotherapy Wisdom','Healing & Wellness'],
+  [70,'To heal is to touch with love that which we previously touched with fear.','Stephen Levine','Healing & Wellness'],
+  [71,'Holistic wellness means caring for mind, body, and spirit — none can be left behind.','Hypnotherapy Wisdom','Healing & Wellness'],
+  [72,'When the mind is calm, the body can do what it was designed to do: heal.','Hypnotherapy Wisdom','Healing & Wellness'],
+  [73,'Self-care is not selfish. It is the foundation from which you give everything else.','Audre Lorde','Healing & Wellness'],
+  [74,'The wound is the place where the light enters you.','Rumi','Healing & Wellness'],
+  [75,'Chronic stress is the silent thief of vitality. Hypnotherapy is one of its most effective antidotes.','Hypnotherapy Wisdom','Healing & Wellness'],
+  [76,'Sleep is the best meditation.','Dalai Lama','Sleep & Relaxation'],
+  [77,'A good night\'s sleep is one of the most powerful healing tools available to you.','Matthew Walker','Sleep & Relaxation'],
+  [78,'Your body restores, repairs, and regenerates while you sleep. Protect that time.','Hypnotherapy Wisdom','Sleep & Relaxation'],
+  [79,'Relaxation is the doorway through which healing walks.','Hypnotherapy Wisdom','Sleep & Relaxation'],
+  [80,'The quieter you become, the more you can hear.','Ram Dass','Sleep & Relaxation'],
+  [81,'Sleep deprivation is not a badge of honor. Rest is productive.','Arianna Huffington','Sleep & Relaxation'],
+  [82,'When you lie down, you will not be afraid; when you lie down, your sleep will be sweet.','Proverbs 3:24','Sleep & Relaxation'],
+  [83,'Each night, as you drift into sleep, your subconscious continues working on your behalf.','Hypnotherapy Wisdom','Sleep & Relaxation'],
+  [84,'Hypnotherapy for sleep is not magic. It is neuroscience in the most natural form.','Hypnotherapy Wisdom','Sleep & Relaxation'],
+  [85,'Rest is where the mind resets, the body repairs, and the spirit recovers.','Hypnotherapy Wisdom','Sleep & Relaxation'],
+  [86,'You cannot pour from an empty cup. Sleep fills the cup.','Hypnotherapy Wisdom','Sleep & Relaxation'],
+  [87,'Tension is who you think you should be. Relaxation is who you are.','Chinese Proverb','Sleep & Relaxation'],
+  [88,'Insomnia is often anxiety wearing a mask. Address the mask and the sleep follows.','Hypnotherapy Wisdom','Sleep & Relaxation'],
+  [89,'Your mind was not designed to be on high alert all day and then simply switch off at night.','Matthew Walker','Sleep & Relaxation'],
+  [90,'Calm mind brings inner strength and self-confidence, so that\'s very important for good health.','Dalai Lama','Sleep & Relaxation'],
+  [91,'In stillness, the noise of the world loses its power over you.','Hypnotherapy Wisdom','Sleep & Relaxation'],
+  [92,'Relaxation is not doing nothing. It is doing something essential.','Hypnotherapy Wisdom','Sleep & Relaxation'],
+  [93,'The moment your head hits the pillow, your body already knows what to do.','Hypnotherapy Wisdom','Sleep & Relaxation'],
+  [94,'Deep sleep is the body\'s greatest performance enhancer.','Matthew Walker','Sleep & Relaxation'],
+  [95,'Learning to relax deeply is one of the most important skills you can develop.','Herbert Benson','Sleep & Relaxation'],
+  [96,'Breathing slowly and deeply is the fastest path to calm.','Hypnotherapy Wisdom','Sleep & Relaxation'],
+  [97,'The body knows how to fall asleep. Sometimes the mind just needs to get out of the way.','Hypnotherapy Wisdom','Sleep & Relaxation'],
+  [98,'A restful night is not a luxury. It is the architecture of a healthy life.','Hypnotherapy Wisdom','Sleep & Relaxation'],
+  [99,'Peace of mind is the highest form of wealth.','Naval Ravikant','Sleep & Relaxation'],
+  [100,'When you slow down, life speeds up in the direction you actually want.','Hypnotherapy Wisdom','Sleep & Relaxation'],
+  [101,'Anxiety is not your enemy. It is a misdirected protection response. Retrain it.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [102,'You don\'t have to control your thoughts. You just have to stop letting them control you.','Dan Millman','Anxiety & Stress'],
+  [103,'Worry is a misuse of the imagination.','Dan Zadra','Anxiety & Stress'],
+  [104,'Anxiety thrives in the gap between what is and what you fear might be.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [105,'Almost everything will work again if you unplug it for a few minutes — including you.','Anne Lamott','Anxiety & Stress'],
+  [106,'The present moment is the only place anxiety cannot fully follow you.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [107,'Take a deep breath. Your nervous system is listening.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [108,'Stress is not what happens to you. It is your response to what happens — and you can train that response.','Hans Selye','Anxiety & Stress'],
+  [109,'You have survived 100% of your worst days so far.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [110,'Anxiety shrinks when you step toward what you fear, not away from it.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [111,'The mind can only hold one dominant thought at a time. Choose it deliberately.','Napoleon Hill','Anxiety & Stress'],
+  [112,'Stress is the body\'s way of saying your mind has forgotten how powerful it is.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [113,'You are not your anxiety. You are the observer of your anxiety.','Eckhart Tolle','Anxiety & Stress'],
+  [114,'The body responds to the mind\'s fears as if they were real. Retrain the mind.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [115,'Breathe in courage. Breathe out fear.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [116,'Anxiety is not a life sentence. It is a pattern — and patterns can change.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [117,'Between stimulus and response there is a space. In that space lies your freedom.','Viktor Frankl','Anxiety & Stress'],
+  [118,'Your calm is your superpower.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [119,'Worrying does not take away tomorrow\'s trouble. It takes away today\'s peace.','Randy Armstrong','Anxiety & Stress'],
+  [120,'The vagus nerve is the highway between your brain and your calm.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [121,'Nothing diminishes anxiety faster than action.','Walter Anderson','Anxiety & Stress'],
+  [122,'You were not built for constant urgency. Your nervous system needs seasons of rest.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [123,'Anxiety is energy without direction. Hypnotherapy gives it a better destination.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [124,'Your thoughts are not facts. They are interpretations. And interpretations can change.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [125,'Peace is not the absence of chaos. It is a skill you build inside it.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [126,'You are enough. You have always been enough.','Marisa Peer','Confidence & Self-Worth'],
+  [127,'Confidence is not about what you have. It is about what you believe about what you have.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [128,'The most common form of despair is not being who you are.','Soren Kierkegaard','Confidence & Self-Worth'],
+  [129,'Self-worth is not for sale, not negotiable, and not dependent on their opinion.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [130,'You were born worthy. Everything that made you question that was learned — and can be unlearned.','Marisa Peer','Confidence & Self-Worth'],
+  [131,'The relationship you have with yourself sets the tone for every other relationship in your life.','Robert Holden','Confidence & Self-Worth'],
+  [132,'Confidence is a habit, not a personality trait.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [133,'No one can make you feel inferior without your consent.','Eleanor Roosevelt','Confidence & Self-Worth'],
+  [134,'Loving yourself is not vanity. It is sanity.','Katrina Mayer','Confidence & Self-Worth'],
+  [135,'You are not a finished product. You are a becoming.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [136,'Stop shrinking yourself to fit in spaces not designed for your growth.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [137,'You owe yourself the same compassion you freely give to others.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [138,'Insecurity is always about a story, never about a fact.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [139,'The most powerful words you can speak are \'I am\' — choose what follows them carefully.','Joel Osteen','Confidence & Self-Worth'],
+  [140,'Authenticity is magnetic. The world responds to people who show up as themselves.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [141,'You have been assigned this mountain to show others it can be moved.','Mel Robbins','Confidence & Self-Worth'],
+  [142,'Self-love is not a destination. It\'s a daily practice.','Louise Hay','Confidence & Self-Worth'],
+  [143,'The way you talk to yourself becomes the architecture of your self-esteem.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [144,'Imposter syndrome is just excellence that hasn\'t caught up with your self-image yet.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [145,'You are worthy of the life you imagine.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [146,'Dare to be exactly who you are. It is the bravest thing you will ever do.','Brené Brown','Confidence & Self-Worth'],
+  [147,'Your value doesn\'t decrease based on someone\'s inability to see your worth.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [148,'Stop waiting for someone to give you permission to live your best life.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [149,'You are not too much. You were just in the wrong rooms.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [150,'The most important conversation you\'ll ever have is the one you have with yourself.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [151,'We are what we repeatedly do. Excellence, then, is not an act but a habit.','Aristotle','Habits & Transformation'],
+  [152,'You don\'t rise to the level of your goals. You fall to the level of your habits.','James Clear','Habits & Transformation'],
+  [153,'Change is not an event. It is a practice.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [154,'Neurons that fire together, wire together. Repeat the right things.','Donald Hebb','Habits & Transformation'],
+  [155,'The secret of getting ahead is getting started.','Mark Twain','Habits & Transformation'],
+  [156,'Every time you resist an old habit, you are literally rewiring your brain.','Joe Dispenza','Habits & Transformation'],
+  [157,'Transformation begins at the edge of your comfort zone.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [158,'Old habits are not failures of willpower. They are memories with strong emotional anchors.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [159,'You are always one decision away from a completely different life.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [160,'Small consistent actions compound into extraordinary results.','James Clear','Habits & Transformation'],
+  [161,'The best time to change was years ago. The second best time is right now.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [162,'Hypnotherapy doesn\'t give you willpower. It makes willpower unnecessary.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [163,'Your habits are votes for the person you are becoming.','James Clear','Habits & Transformation'],
+  [164,'Breaking a habit is easier when you address why the habit started.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [165,'The brain is not hardwired. It is livewired — constantly changing with every experience.','David Eagleman','Habits & Transformation'],
+  [166,'Motivation gets you started. A reprogrammed mind keeps you going.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [167,'Lasting change requires working with the subconscious, not against it.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [168,'You are not starting over. You are starting with experience.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [169,'Behavior change is identity change. Decide who you want to be, then act from that identity.','James Clear','Habits & Transformation'],
+  [170,'The caterpillar thought its world was ending. Then it became a butterfly.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [171,'Every habit you have was once a choice. Every choice can be made again.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [172,'Progress, not perfection, is the goal.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [173,'The person you will be in five years is built entirely by what you do today.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [174,'Transformation isn\'t about becoming someone else. It\'s about becoming fully yourself.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [175,'One percent better every day is 37 times better by the end of the year.','James Clear','Habits & Transformation'],
+  [176,'The present moment is the only moment available to us — and it is the door to all moments.','Thich Nhat Hanh','Mindfulness & Presence'],
+  [177,'Mindfulness is not about emptying your mind. It is about not being controlled by it.','Eckhart Tolle','Mindfulness & Presence'],
+  [178,'You can\'t stop the waves, but you can learn to surf.','Jon Kabat-Zinn','Mindfulness & Presence'],
+  [179,'In the rush to return to normal, use this time to consider which parts of normal are worth returning to.','Dave Hollis','Mindfulness & Presence'],
+  [180,'Where attention goes, energy flows.','Tony Robbins','Mindfulness & Presence'],
+  [181,'The present moment always will have been. It is the one thing you cannot lose.','Eckhart Tolle','Mindfulness & Presence'],
+  [182,'Awareness itself is healing.','Hypnotherapy Wisdom','Mindfulness & Presence'],
+  [183,'You are not your thoughts. You are the awareness that notices them.','Eckhart Tolle','Mindfulness & Presence'],
+  [184,'Most of human suffering comes from living in the past or the future.','Lao Tzu','Mindfulness & Presence'],
+  [185,'Presence is the most generous gift you can give yourself — and others.','Hypnotherapy Wisdom','Mindfulness & Presence'],
+  [186,'Slow down. Most of what you\'re rushing toward will still be there if you breathe first.','Hypnotherapy Wisdom','Mindfulness & Presence'],
+  [187,'Your breath is the bridge between your conscious mind and your body. Use it.','Thich Nhat Hanh','Mindfulness & Presence'],
+  [188,'The practice of mindfulness is the practice of coming home.','Hypnotherapy Wisdom','Mindfulness & Presence'],
+  [189,'When you sit quietly, the noise between your ears begins to tell you the truth.','Hypnotherapy Wisdom','Mindfulness & Presence'],
+  [190,'Awareness without judgment is healing.','Jon Kabat-Zinn','Mindfulness & Presence'],
+  [191,'The quality of your attention shapes the quality of your experience.','Hypnotherapy Wisdom','Mindfulness & Presence'],
+  [192,'Notice the space between your thoughts. That is where you truly live.','Eckhart Tolle','Mindfulness & Presence'],
+  [193,'Meditation and hypnosis are cousins — both invite the mind to settle and the truth to surface.','Hypnotherapy Wisdom','Mindfulness & Presence'],
+  [194,'To breathe consciously is to take the first step toward mastering the mind.','Hypnotherapy Wisdom','Mindfulness & Presence'],
+  [195,'Most people spend their whole life running from themselves. Presence is the end of the chase.','Hypnotherapy Wisdom','Mindfulness & Presence'],
+  [196,'Feelings are not facts. But they deserve to be heard.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [197,'You can\'t heal what you refuse to feel.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [198,'Emotional intelligence is the ability to feel without being consumed.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [199,'Suppressed emotions don\'t disappear. They just show up in different costumes.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [200,'Grief is not a problem to solve. It is love with nowhere to go.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [201,'Every emotion is a messenger. Learn to read the message before dismissing the messenger.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [202,'You are allowed to feel everything — and then choose how you respond.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [203,'Forgiveness is not condoning what happened. It is freeing yourself from its grip.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [204,'Your triggers are signposts pointing to the wounds that still need tending.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [205,'Emotions processed move through you. Emotions suppressed move into you.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [206,'You are not responsible for what happened to you. You are responsible for what you do with it.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [207,'Compassion for yourself is not weakness. It is the foundation of resilience.','Kristin Neff','Emotional Wellness'],
+  [208,'The bravest thing you can do is feel something fully and survive it.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [209,'Anger is not your enemy. Unexamined anger is.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [210,'Emotional freedom is not the absence of emotion — it is no longer being held hostage by it.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [211,'The courage to be vulnerable is the cornerstone of human connection.','Brené Brown','Emotional Wellness'],
+  [212,'Boundaries are not walls. They are the doors that let the right things in.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [213,'You deserve relationships where you don\'t have to shrink to fit.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [214,'Crying is not weakness. It is your body releasing what your words cannot hold.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [215,'Joy is not something you find after healing. It often shows up in the middle of it.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [216,'The only way out is through.','Robert Frost','Motivation & Inspiration'],
+  [217,'You don\'t have to be perfect to be worthy of help.','Hypnotherapy Wisdom','Motivation & Inspiration'],
+  [218,'The comeback is always stronger than the setback.','Hypnotherapy Wisdom','Motivation & Inspiration'],
+  [219,'Start where you are. Use what you have. Do what you can.','Arthur Ashe','Motivation & Inspiration'],
+  [220,'Every single day is an opportunity to change your life.','Hypnotherapy Wisdom','Motivation & Inspiration'],
+  [221,'You have more courage in you than you have ever been told.','Hypnotherapy Wisdom','Motivation & Inspiration'],
+  [222,'It always seems impossible until it is done.','Nelson Mandela','Motivation & Inspiration'],
+  [223,'Someone out there is praying for the strength you take for granted.','Hypnotherapy Wisdom','Motivation & Inspiration'],
+  [224,'You were built for more than surviving. You were built for thriving.','Hypnotherapy Wisdom','Motivation & Inspiration'],
+  [225,'Do not wait to be free. Begin to act as though you already are.','Hypnotherapy Wisdom','Motivation & Inspiration'],
+  [226,'Your story isn\'t over. Some of the best chapters haven\'t been written yet.','Hypnotherapy Wisdom','Motivation & Inspiration'],
+  [227,'The most powerful force in the human body is the will to keep going.','Hypnotherapy Wisdom','Motivation & Inspiration'],
+  [228,'Fall seven times, rise eight.','Japanese Proverb','Motivation & Inspiration'],
+  [229,'You already have permission to begin. You gave it to yourself.','Hypnotherapy Wisdom','Motivation & Inspiration'],
+  [230,'Action is the antidote to despair.','Joan Baez','Motivation & Inspiration'],
+  [231,'Don\'t let the fear of striking out keep you from playing the game.','Babe Ruth','Motivation & Inspiration'],
+  [232,'The biggest risk is not taking any risk at all.','Mark Zuckerberg','Motivation & Inspiration'],
+  [233,'Courage doesn\'t always roar. Sometimes it is the quiet voice that says: I will try again tomorrow.','Mary Anne Radmacher','Motivation & Inspiration'],
+  [234,'There is no finish line. Just the next step.','Hypnotherapy Wisdom','Motivation & Inspiration'],
+  [235,'Everything you want is on the other side of doing the work.','Hypnotherapy Wisdom','Motivation & Inspiration'],
+  [236,'The body is the autobiography of your life.','Bob Cooley','Mind-Body'],
+  [237,'Your body listens to everything your mind says.','Hypnotherapy Wisdom','Mind-Body'],
+  [238,'Stress is not just a feeling. It is a physiology.','Deepak Chopra','Mind-Body'],
+  [239,'The gut is the body\'s second brain — and both brains need care.','Hypnotherapy Wisdom','Mind-Body'],
+  [240,'Your posture tells the world how you feel about yourself. It also tells your brain.','Amy Cuddy','Mind-Body'],
+  [241,'A smile starts in the mind before it reaches the face.','Hypnotherapy Wisdom','Mind-Body'],
+  [242,'Movement is medicine — and the mind that prescribes it lives inside you.','Hypnotherapy Wisdom','Mind-Body'],
+  [243,'Chronic pain is often the body speaking on behalf of an unheard mind.','John Sarno','Mind-Body'],
+  [244,'What you eat feeds your body. What you think feeds your nervous system.','Hypnotherapy Wisdom','Mind-Body'],
+  [245,'The mind and body are not in opposition. They are a partnership.','Hypnotherapy Wisdom','Mind-Body'],
+  [246,'Placebo is not deception. It is the mind\'s extraordinary healing capacity in action.','Joe Dispenza','Mind-Body'],
+  [247,'Your nervous system responds to what you imagine with the same fidelity as what is real.','Hypnotherapy Wisdom','Mind-Body'],
+  [248,'The body holds memories the mind has forgotten. Gentle work can reach both.','Hypnotherapy Wisdom','Mind-Body'],
+  [249,'Epigenetics shows us: lifestyle and mindset can literally change which genes express themselves.','Bruce Lipton','Mind-Body'],
+  [250,'When the mind relaxes, inflammation decreases. The science is clear.','Herbert Benson','Mind-Body'],
+  [251,'Your body is not the problem. Your relationship with your body is the starting point.','Hypnotherapy Wisdom','Weight & Body Image'],
+  [252,'Lasting weight change begins in the mind, not on the scale.','Hypnotherapy Wisdom','Weight & Body Image'],
+  [253,'You will never hate yourself into a version of yourself you love.','Hypnotherapy Wisdom','Weight & Body Image'],
+  [254,'Emotional eating is rarely about hunger. It is about what we are hungry for.','Geneen Roth','Weight & Body Image'],
+  [255,'When you change your relationship with food, you change your relationship with yourself.','Hypnotherapy Wisdom','Weight & Body Image'],
+  [256,'Your body is not your enemy. It has been working hard to keep you alive.','Hypnotherapy Wisdom','Weight & Body Image'],
+  [257,'Diets change your plate. Hypnotherapy changes your mind.','Hypnotherapy Wisdom','Weight & Body Image'],
+  [258,'Stop punishing your body for what your mind is going through.','Hypnotherapy Wisdom','Weight & Body Image'],
+  [259,'When stress is the hunger, food is never the answer.','Hypnotherapy Wisdom','Weight & Body Image'],
+  [260,'You deserve to feel at home in your own body.','Hypnotherapy Wisdom','Weight & Body Image'],
+  [261,'Sustainable change comes from self-love, not self-loathing.','Hypnotherapy Wisdom','Weight & Body Image'],
+  [262,'Listen to your body. It is the most advanced biofeedback device ever created.','Hypnotherapy Wisdom','Weight & Body Image'],
+  [263,'Food is fuel and pleasure, not punishment or reward.','Hypnotherapy Wisdom','Weight & Body Image'],
+  [264,'The inner critic that sabotages your health is one of the most transformable patterns with hypnotherapy.','Hypnotherapy Wisdom','Weight & Body Image'],
+  [265,'Nourishment is not just what you eat — it is what you feed every part of yourself.','Hypnotherapy Wisdom','Weight & Body Image'],
+  [266,'Fear is not the boss of you. It just thinks it is.','Hypnotherapy Wisdom','Fear & Phobias'],
+  [267,'A phobia is a learned response. And learning can always be updated.','Hypnotherapy Wisdom','Fear & Phobias'],
+  [268,'Fear is excitement without breath.','Fritz Perls','Fear & Phobias'],
+  [269,'The thing you fear most has no power over you. Your thoughts about it do.','Hypnotherapy Wisdom','Fear & Phobias'],
+  [270,'Courage is not the absence of fear. It is feeling it and doing it anyway.','Susan Jeffers','Fear & Phobias'],
+  [271,'Most fears were installed in moments of high emotion. They can be gently updated.','Hypnotherapy Wisdom','Fear & Phobias'],
+  [272,'Fear of flying is almost never about flying — it is about perceived loss of control.','Hypnotherapy Wisdom','Fear & Phobias'],
+  [273,'You are the adult now. You can tell the frightened younger part of you that it is safe.','Hypnotherapy Wisdom','Fear & Phobias'],
+  [274,'The brain that learned to fear can be taught to feel safe again.','Hypnotherapy Wisdom','Fear & Phobias'],
+  [275,'Fear is a liar with a very convincing voice.','Hypnotherapy Wisdom','Fear & Phobias'],
+  [276,'On the other side of your biggest fear is the life you\'ve been avoiding.','Hypnotherapy Wisdom','Fear & Phobias'],
+  [277,'Phobias are not character flaws. They are protective responses that outgrew their purpose.','Hypnotherapy Wisdom','Fear & Phobias'],
+  [278,'Every brave act was done by someone who was afraid.','Hypnotherapy Wisdom','Fear & Phobias'],
+  [279,'The antidote to fear is not bravery. It is safety — and your mind can learn to feel safe.','Hypnotherapy Wisdom','Fear & Phobias'],
+  [280,'What you resist persists. What you approach with curiosity transforms.','Carl Jung','Fear & Phobias'],
+  [281,'Grief is the price of love — and it is always worth it.','Queen Elizabeth II','Grief & Loss'],
+  [282,'You don\'t get over grief. You learn to carry it differently.','Hypnotherapy Wisdom','Grief & Loss'],
+  [283,'There is no timeline for healing a broken heart. Be gentle with yourself.','Hypnotherapy Wisdom','Grief & Loss'],
+  [284,'Loss changes us. But it does not have to diminish us.','Hypnotherapy Wisdom','Grief & Loss'],
+  [285,'Grief shared is grief halved. You do not have to carry it alone.','Hypnotherapy Wisdom','Grief & Loss'],
+  [286,'The people we love do not die as long as we carry them with us.','Hypnotherapy Wisdom','Grief & Loss'],
+  [287,'Allowing yourself to grieve is one of the most courageous things you can do.','Hypnotherapy Wisdom','Grief & Loss'],
+  [288,'Grief is not a disorder. It is a deep expression of love.','Hypnotherapy Wisdom','Grief & Loss'],
+  [289,'Healing from loss is not forgetting. It is finding a place to put the love.','Hypnotherapy Wisdom','Grief & Loss'],
+  [290,'You are allowed to be both a masterpiece and a work in progress.','Sophia Bush','Grief & Loss'],
+  [291,'Every craving has a cue. Change the cue, change the craving.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [292,'You are not addicted to the substance. You are addicted to the feeling it gives you — and that feeling can be found another way.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [293,'The part of you that wants to quit is stronger than the part that doesn\'t.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [294,'Quitting smoking is not about willpower. It is about identity. Decide you are a non-smoker.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [295,'Your lungs are not asking for more cigarettes. They are asking for mercy.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [296,'The zone isn\'t a mystery. It\'s what happens when the conscious mind gets out of the way.','Hypnotherapy Wisdom','Performance & Focus'],
+  [297,'Top performers don\'t work harder. They think differently.','Hypnotherapy Wisdom','Performance & Focus'],
+  [298,'Visualization is the rehearsal. Hypnotherapy makes the rehearsal feel real.','Hypnotherapy Wisdom','Performance & Focus'],
+  [299,'Mental training is the final frontier in human performance.','Hypnotherapy Wisdom','Performance & Focus'],
+  [300,'Elite athletes have known for decades what science now confirms: the mind trains the body.','Hypnotherapy Wisdom','Performance & Focus'],
+  [301,'Focus is a muscle. Train it like one.','Hypnotherapy Wisdom','Performance & Focus'],
+  [302,'Confidence under pressure is a skill, and skills can be installed.','Hypnotherapy Wisdom','Performance & Focus'],
+  [303,'Procrastination is rarely laziness. It is usually fear wearing a work uniform.','Hypnotherapy Wisdom','Performance & Focus'],
+  [304,'The most underutilized performance tool on earth is the human mind.','Hypnotherapy Wisdom','Performance & Focus'],
+  [305,'Your biggest competition isn\'t out there. It is the negative voice in your head.','Hypnotherapy Wisdom','Performance & Focus'],
+  [306,'Champions are not born. They are programmed — and hypnotherapy is one of the programs.','Hypnotherapy Wisdom','Performance & Focus'],
+  [307,'Stage fright is just excitement that hasn\'t been reframed yet.','Hypnotherapy Wisdom','Performance & Focus'],
+  [308,'The mind practiced in relaxation performs better under pressure.','Hypnotherapy Wisdom','Performance & Focus'],
+  [309,'Creative breakthroughs don\'t happen when we force them. They surface when we relax into them.','Hypnotherapy Wisdom','Performance & Focus'],
+  [310,'A focused mind is the most powerful tool in existence.','Napoleon Hill','Performance & Focus'],
+  [311,'You teach people how to treat you by what you allow, what you stop, and what you reinforce.','Tony Gaskins','Relationships'],
+  [312,'The relationship you have with yourself is the template for every relationship you\'ll ever have.','Hypnotherapy Wisdom','Relationships'],
+  [313,'Attachment styles are not life sentences. They can be updated with the right support.','Hypnotherapy Wisdom','Relationships'],
+  [314,'People-pleasing is not kindness. It is self-abandonment dressed up as virtue.','Hypnotherapy Wisdom','Relationships'],
+  [315,'You deserve love that doesn\'t come with conditions attached.','Hypnotherapy Wisdom','Relationships'],
+  [316,'The wounds from childhood don\'t live in the past. They live in present reactions.','Hypnotherapy Wisdom','Relationships'],
+  [317,'Secure attachment is not just for children. Adults can learn it too.','Hypnotherapy Wisdom','Relationships'],
+  [318,'Communication is not the issue. The beliefs about your worth are.','Hypnotherapy Wisdom','Relationships'],
+  [319,'You cannot truly love another if you have not learned to love yourself.','Louise Hay','Relationships'],
+  [320,'Choosing yourself is not selfish. It is the prerequisite for genuine generosity.','Hypnotherapy Wisdom','Relationships'],
+  [321,'Health is not just the absence of disease. It is the presence of vitality, clarity, and joy.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [322,'You are the expert on your own experience. A good therapist helps you remember that.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [323,'Seeking help is not weakness. It is wisdom.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [324,'The first step in healing is allowing yourself to want something different.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [325,'You don\'t have to hit rock bottom to deserve support.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [326,'Prevention is the most underrated form of healthcare.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [327,'Mental health is not a luxury. It is the foundation of everything else.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [328,'You invest in your car, your home, your wardrobe. Invest in your mind.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [329,'The greatest ROI you will ever find is investing in your mental and emotional wellbeing.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [330,'Healing is not a destination. It is a way of walking through life.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [331,'An examined life is a richer life.','Socrates','Wellness Philosophy'],
+  [332,'The quality of your inner life determines the quality of your outer life.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [333,'You are not a problem to be fixed. You are a person to be supported.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [334,'Every session is a conversation between who you are and who you are becoming.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [335,'Therapy is not about digging up the past. It is about freeing the future.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [336,'Gratitude turns what we have into enough.','Melody Beattie','Gratitude & Positivity'],
+  [337,'What you appreciate appreciates.','Lynne Twist','Gratitude & Positivity'],
+  [338,'The mind set on gratitude cannot simultaneously be set on lack.','Hypnotherapy Wisdom','Gratitude & Positivity'],
+  [339,'Optimism is a practice, not a personality type.','Hypnotherapy Wisdom','Gratitude & Positivity'],
+  [340,'A grateful mind is a peaceful mind.','Hypnotherapy Wisdom','Gratitude & Positivity'],
+  [341,'Your brain on gratitude literally looks different than your brain in lack — science confirms it.','Hypnotherapy Wisdom','Gratitude & Positivity'],
+  [342,'Joy is not the absence of pain. It is the choice to notice what is good.','Hypnotherapy Wisdom','Gratitude & Positivity'],
+  [343,'Three things you are grateful for today will change your neurochemistry. Try it.','Hypnotherapy Wisdom','Gratitude & Positivity'],
+  [344,'Positivity is not toxic when it includes the full truth of human experience.','Hypnotherapy Wisdom','Gratitude & Positivity'],
+  [345,'Even on hard days, there are moments worth noting. Train your mind to find them.','Hypnotherapy Wisdom','Gratitude & Positivity'],
+  [346,'How you begin your morning sets the tone for your entire day.','Hypnotherapy Wisdom','Morning & Intention'],
+  [347,'Before you check your phone, check in with yourself.','Hypnotherapy Wisdom','Morning & Intention'],
+  [348,'The first thought you think each morning is one of the most powerful of your day.','Hypnotherapy Wisdom','Morning & Intention'],
+  [349,'Set an intention today. A life lived with intention is a life lived on purpose.','Hypnotherapy Wisdom','Morning & Intention'],
+  [350,'Good morning. Your mind is rested and open. Use it well today.','Hypnotherapy Wisdom','Morning & Intention'],
+  [351,'Today is not just another day. It is a new chapter you get to write.','Hypnotherapy Wisdom','Morning & Intention'],
+  [352,'Morning affirmations are not wishful thinking. They are programming.','Hypnotherapy Wisdom','Morning & Intention'],
+  [353,'Drink water, breathe deeply, and remember who you are before the day tells you who to be.','Hypnotherapy Wisdom','Morning & Intention'],
+  [354,'Decide how you want to feel today before the day decides for you.','Hypnotherapy Wisdom','Morning & Intention'],
+  [355,'A morning routine is a signal to your brain: today matters, and so do I.','Hypnotherapy Wisdom','Morning & Intention'],
+  [356,'Tonight, release what no longer serves you before you sleep.','Hypnotherapy Wisdom','Evening & Reflection'],
+  [357,'End each day by noting three things that went well. Your brain will start looking for them.','Hypnotherapy Wisdom','Evening & Reflection'],
+  [358,'The way you end your day programs what your subconscious works on overnight.','Hypnotherapy Wisdom','Evening & Reflection'],
+  [359,'Put down the weight of today. Tomorrow is a clean slate.','Hypnotherapy Wisdom','Evening & Reflection'],
+  [360,'Self-reflection is not self-criticism. It is the compass for growth.','Hypnotherapy Wisdom','Evening & Reflection'],
+  [361,'Before sleep, forgive yourself for anything you wish you\'d done differently today.','Hypnotherapy Wisdom','Evening & Reflection'],
+  [362,'The brain consolidates learning during sleep — what you think about as you drift off matters.','Matthew Walker','Evening & Reflection'],
+  [363,'You did the best you could today with what you had. That is enough.','Hypnotherapy Wisdom','Evening & Reflection'],
+  [364,'Let tonight\'s rest be tomorrow\'s fuel.','Hypnotherapy Wisdom','Evening & Reflection'],
+  [365,'As you close your eyes tonight, let your mind settle on what you are grateful for.','Hypnotherapy Wisdom','Evening & Reflection'],
+  [366,'Your past does not equal your future.','Tony Robbins','Mindset & Belief'],
+  [367,'It is not the mountain we conquer but ourselves.','Edmund Hillary','Motivation & Inspiration'],
+  [368,'The mind is a tool. You can train it, direct it, and upgrade it.','Hypnotherapy Wisdom','Subconscious Mind'],
+  [369,'Success is the progressive realization of a worthy ideal.','Earl Nightingale','Motivation & Inspiration'],
+  [370,'Healing is not about removing the darkness — it is about bringing in the light.','Hypnotherapy Wisdom','Healing & Wellness'],
+  [371,'You are not too far gone. There is no such thing.','Hypnotherapy Wisdom','Healing & Wellness'],
+  [372,'The willingness to change is the beginning of change.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [373,'You rewire every time you choose a new response to an old trigger.','Joe Dispenza','Habits & Transformation'],
+  [374,'Clarity comes in the quiet. Seek the quiet.','Hypnotherapy Wisdom','Mindfulness & Presence'],
+  [375,'Your inner critic is not your friend. But it can be retrained.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [376,'The depth of your healing is proportional to your willingness to feel.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [377,'Nothing in life is to be feared. It is only to be understood.','Marie Curie','Fear & Phobias'],
+  [378,'Change your story, change your life.','Tony Robbins','Mindset & Belief'],
+  [379,'Every thought either builds you up or tears you down. There is no neutral.','Hypnotherapy Wisdom','Subconscious Mind'],
+  [380,'When you take care of your mind, everything else in your life improves.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [381,'The brain is not fixed at birth. It is shaped by everything you do, think, and feel.','David Eagleman','Subconscious Mind'],
+  [382,'Your imagination is the preview of life\'s coming attractions.','Albert Einstein','Mindset & Belief'],
+  [383,'You become your most dominant thoughts — choose them like your life depends on it.','Hypnotherapy Wisdom','Subconscious Mind'],
+  [384,'Hypnotherapy is not about control. It is about liberation.','Hypnotherapy Wisdom','Subconscious Mind'],
+  [385,'One session won\'t fix everything. But it might show you that everything can be fixed.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [386,'There is immense freedom in realizing your current patterns are not your permanent nature.','Hypnotherapy Wisdom','Habits & Transformation'],
+  [387,'Rest is not the enemy of productivity. It is the engine.','Hypnotherapy Wisdom','Sleep & Relaxation'],
+  [388,'Breathe. You have survived every single thing you thought would break you.','Hypnotherapy Wisdom','Anxiety & Stress'],
+  [389,'The same mind that creates the problem can be the solution.','Hypnotherapy Wisdom','Subconscious Mind'],
+  [390,'Choosing your wellbeing is not indulgent. It is essential.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [391,'Gentle, consistent work on the inner world creates radical change in the outer world.','Hypnotherapy Wisdom','Mindset & Belief'],
+  [392,'Your mind is the most important environment you will ever live in. Tend it.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [393,'What gets measured gets managed — and what gets noticed in the mind gets changed.','Hypnotherapy Wisdom','Mindfulness & Presence'],
+  [394,'You have been through enough to know you are stronger than you think.','Hypnotherapy Wisdom','Confidence & Self-Worth'],
+  [395,'Decide today that your mental health is worth your time and investment.','Hypnotherapy Wisdom','Wellness Philosophy'],
+  [396,'The mind trained in hypnosis learns to access deep states of healing on demand.','Hypnotherapy Wisdom','Subconscious Mind'],
+  [397,'Give yourself the grace you give everyone else.','Hypnotherapy Wisdom','Emotional Wellness'],
+  [398,'What would your life look like if you genuinely believed you were enough?','Marisa Peer','Confidence & Self-Worth'],
+  [399,'The version of you that is fully healed is not a fantasy. It is a direction.','Hypnotherapy Wisdom','Healing & Wellness'],
+  [400,'You found this page for a reason. The part of you that is ready to change brought you here.','Hypnotherapy Wisdom','Wellness Philosophy']
+];
+
+// ═══════════════════════════════════════════
+// DAILY POSTS
+// ═══════════════════════════════════════════
+const START_DATE   = new Date('2025-07-01'); // ← Update to Kelly's actual start date
+const DEFAULT_TAGS = '#hypnotherapy #mindset #subconsciousmind #mentalwellness #kellyhullhypnotherapy #certifiedhypnotherapist #centralflorida #southerncalifornia';
+let postStatuses = {};
+
+function getDayOffset(date) {
+  return Math.max(0, Math.floor((date - START_DATE) / 86400000));
+}
+function getQuoteForDay(offset) {
+  const q = QUOTES[((offset % 400) + 400) % 400];
+  return { id: q[0], text: q[1], author: q[2], category: q[3],
+           dayNum: offset + 1, quoteNum: ((offset % 400) + 400) % 400 + 1 };
+}
+function buildPostText(q, tags) {
+  return `"${q.text}"
+
+— ${q.author}
+
+${tags}`;
+}
+
+async function loadStatuses() {
+  if (!sb) return;
+  const { data } = await sb.from('quote_posts').select('*').limit(600);
+  if (data) { postStatuses = {}; data.forEach(r => { postStatuses[r.day_offset] = r; }); }
+}
+
+async function initSocialTab() {
+  await loadStatuses();
+  renderDay(getDayOffset(new Date()));
+}
+
+function renderDay(offset) {
+  const q      = getQuoteForDay(offset);
+  const st     = postStatuses[offset] || { status: 'pending' };
+  const isToday = offset === getDayOffset(new Date());
+  const date   = new Date(START_DATE.getTime() + offset * 86400000);
+  const dateStr = date.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+  const tags   = localStorage.getItem('kh_hashtags') || DEFAULT_TAGS;
+  const post   = st.edited_text || buildPostText(q, tags);
+  const n      = post.length;
+  const statusHTML = {
+    pending:  '<span class="status-badge status-pending">● Pending</span>',
+    approved: '<span class="status-badge status-approved">✓ Approved</span>',
+    posted:   '<span class="status-badge status-posted">✓ Posted</span>',
+    skipped:  '<span class="status-badge status-skipped">— Skipped</span>',
+  }[st.status] || '<span class="status-badge status-pending">● Pending</span>';
+
+  document.getElementById('socialMain').innerHTML = `
+<div id="setupBanner" class="setup-banner" style="display:none">
+  <h3>⚡ Buffer Setup Required (one-time, ~5 minutes)</h3>
+  <ol>
+    <li>Go to <strong>buffer.com</strong> → sign up free → connect your Facebook Page and Instagram account</li>
+    <li>Go to <strong>buffer.com/developers/api</strong> → click Get Access Token → copy it</li>
+    <li>In <strong>Netlify → your site → Site configuration → Environment variables</strong>, add:<br/>
+      <code>BUFFER_ACCESS_TOKEN</code> = your token</li>
+    <li>Visit <code>kellyhullhypnotherapy.com/.netlify/functions/get-profiles</code> — copy your profile IDs</li>
+    <li>Add <code>BUFFER_PROFILE_IDS</code> = the IDs separated by commas (e.g. <code>abc123,def456</code>)</li>
+    <li>Redeploy the site on Netlify — done!</li>
+  </ol>
+</div>
+
+<div class="day-nav">
+  <button class="day-nav-btn" onclick="renderDay(${offset-1})">← Prev Day</button>
+  <div class="day-label">${isToday ? '📅 Today &nbsp;' : ''}${dateStr} &nbsp; ${statusHTML}</div>
+  <button class="day-nav-btn" onclick="renderDay(${offset+1})">Next Day →</button>
+</div>
+
+<div class="quote-card">
+  <div class="quote-day">Day ${q.dayNum} · Quote #${q.quoteNum} of 400 · ${q.category}</div>
+  <div class="quote-text">"${q.text}"</div>
+  <div class="quote-author">— ${q.author}</div>
+  <div style="margin-top:.6rem"><span class="quote-cat">${q.category}</span></div>
+</div>
+
+<div class="hashtag-wrap">
+  <label>Hashtags (saved automatically)</label>
+  <input type="text" id="tagInput" value="${tags}"
+    oninput="localStorage.setItem('kh_hashtags',this.value);refreshPreview(${offset})"/>
+</div>
+
+<div class="post-preview">
+  <div class="post-preview-label">
+    <span>Post Preview — editable</span>
+    <span>Instagram · Facebook</span>
+  </div>
+  <textarea id="postTA" oninput="updateCC(this)">${post}</textarea>
+  <div class="char-count ${n>2200?'over':n>1800?'warn':''}" id="cc">
+    ${n} chars${n>2200?' — ⚠️ Over Instagram 2200 limit':''}${n<=2200&&n>100?' — ✓ Good for both platforms':''}
+  </div>
+</div>
+
+<div class="post-actions">
+  <button class="btn-post" id="postBtn" onclick="doPost(${offset},${q.id})">🚀 Approve &amp; Post Now</button>
+  <button class="btn-approve" onclick="doApprove(${offset},${q.id})">✓ Approve for Later</button>
+  <button class="btn-skip" onclick="doSkip(${offset},${q.id})">Skip</button>
+  <button class="btn-ghost btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('postTA').value);showToast('✓ Copied','success')" style="margin-left:auto">📋 Copy</button>
+</div>
+
+<div>
+  <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.1rem;margin-bottom:.75rem">Recent History</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Date</th><th>Quote</th><th>Status</th><th>Posted</th></tr></thead>
+    <tbody id="histTbl"><tr><td colspan="4" style="text-align:center;padding:1.2rem;color:var(--light)">Loading…</td></tr></tbody>
+  </table></div>
+</div>`;
+  loadHistory();
+}
+
+function updateCC(el) {
+  const n  = el.value.length;
+  const cc = document.getElementById('cc');
+  if (!cc) return;
+  cc.textContent = n + ' chars' + (n>2200?' — ⚠️ Over Instagram 2200 limit':n>100?' — ✓ Good for both platforms':'');
+  cc.className   = 'char-count' + (n>2200?' over':n>1800?' warn':'');
+}
+
+function refreshPreview(offset) {
+  const q    = getQuoteForDay(offset);
+  const tags = document.getElementById('tagInput')?.value || DEFAULT_TAGS;
+  const ta   = document.getElementById('postTA');
+  if (ta) { ta.value = buildPostText(q, tags); updateCC(ta); }
+}
+
+async function doPost(offset, quoteId) {
+  const text = document.getElementById('postTA')?.value?.trim();
+  if (!text) return;
+  const btn = document.getElementById('postBtn');
+  btn.disabled = true; btn.textContent = 'Posting…';
+  try {
+    const res  = await fetch('/.netlify/functions/post-social', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, now: true }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      showToast('Post failed: ' + (data.error || 'Unknown error'), 'error', 5000);
+      if ((data.error||'').includes('not configured')) document.getElementById('setupBanner').style.display='block';
+      btn.disabled = false; btn.textContent = '🚀 Approve & Post Now';
+      return;
+    }
+    await saveStatus(offset, quoteId, 'posted', text);
+    showToast('✓ Posted to Facebook and Instagram!', 'success');
+    renderDay(offset);
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = '🚀 Approve & Post Now';
+  }
+}
+
+async function doApprove(offset, quoteId) {
+  const text = document.getElementById('postTA')?.value?.trim();
+  await saveStatus(offset, quoteId, 'approved', text);
+  showToast('✓ Approved for later', 'success');
+  renderDay(offset);
+}
+
+async function doSkip(offset, quoteId) {
+  await saveStatus(offset, quoteId, 'skipped', '');
+  showToast('Skipped', '');
+  renderDay(offset + 1);
+}
+
+async function saveStatus(offset, quoteId, status, editedText) {
+  if (!sb) return;
+  const row = {
+    day_offset: offset, quote_id: quoteId, status,
+    edited_text: editedText || null,
+    posted_at: status === 'posted' ? new Date().toISOString() : null,
+    scheduled_date: new Date(START_DATE.getTime() + offset * 86400000).toISOString().split('T')[0],
+  };
+  await sb.from('quote_posts').upsert(row, { onConflict: 'day_offset' });
+  await loadStatuses();
+}
+
+async function loadHistory() {
+  const tbody = document.getElementById('histTbl');
+  if (!tbody || !sb) return;
+  const { data } = await sb.from('quote_posts').select('*')
+    .neq('status','pending').order('day_offset',{ascending:false}).limit(10);
+  if (!data?.length) { tbody.innerHTML='<tr><td colspan="4" style="text-align:center;padding:1rem;color:var(--light)">No posts yet</td></tr>'; return; }
+  const sc = { posted:'status-posted', approved:'status-approved', skipped:'status-skipped' };
+  tbody.innerHTML = data.map(r => {
+    const q  = QUOTES.find(x => x[0] === r.quote_id) || [0,'(unknown)'];
+    const pa = r.posted_at ? new Date(r.posted_at).toLocaleString() : '';
+    return `<tr>
+      <td style="font-size:.8rem;white-space:nowrap">${r.scheduled_date||''}</td>
+      <td style="font-size:.8rem;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(q[1]||'').slice(0,70)}…</td>
+      <td><span class="status-badge ${sc[r.status]||''}">${r.status}</span></td>
+      <td style="font-size:.75rem;color:var(--light)">${pa}</td>
+    </tr>`;
+  }).join('');
+}
+
+</script>
+</body>
+</html>
