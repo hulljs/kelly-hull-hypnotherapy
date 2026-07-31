@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Recording Review | Kelly Hull Hypnotherapy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --p:#7c5cbf;--p-lt:#ede8f7;--p-mid:#a98dd6;--p-dk:#5a3fa0;
+    --sage:#4a6b45;--sage-lt:#e8f0e6;
+    --dark:#1a1a2e;--mid:#4a3f6b;--light:#8a7ea0;
+    --bg:#f7f5fc;--white:#fff;--bdr:#d9cef0;
+    --red:#c04040;--red-lt:#fdf0f0;
+    --gold:#c8922a;--gold-lt:#fdf3e3;
+    --green:#2d7a2d;--green-lt:#edf7ed;
+    --serif:'Cormorant Garamond',serif;--sans:'Nunito',sans-serif;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--bg);color:var(--dark);min-height:100vh;display:flex;flex-direction:column}
+
+  /* HEADER */
+  header{background:var(--white);border-bottom:1px solid var(--bdr);padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between}
+  .header-logo{font-family:var(--serif);font-size:1.1rem;color:var(--p);text-decoration:none}
+  .header-logo span{display:block;font-size:.62rem;font-family:var(--sans);font-weight:400;letter-spacing:.15em;text-transform:uppercase;color:var(--light)}
+  .header-badge{font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:.3rem .8rem;border-radius:20px;background:var(--gold-lt);color:var(--gold)}
+
+  /* MAIN */
+  main{flex:1;max-width:700px;margin:0 auto;padding:2.5rem 1.5rem;width:100%}
+
+  /* LOADING / ERROR */
+  .center{text-align:center;padding:4rem 2rem}
+  .center-icon{font-size:3rem;margin-bottom:1rem}
+  .center h2{font-family:var(--serif);font-size:1.5rem;color:var(--dark);margin-bottom:.5rem}
+  .center p{font-size:.9rem;color:var(--light);line-height:1.7}
+  .spinner{width:36px;height:36px;border:3px solid var(--bdr);border-top-color:var(--p);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 1rem}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* RECORDING CARD */
+  .rec-card{background:var(--white);border-radius:18px;overflow:hidden;border:1px solid var(--bdr);margin-bottom:1.5rem;box-shadow:0 4px 24px rgba(124,92,191,.08)}
+  .rec-cover{padding:2.5rem;background:linear-gradient(135deg,#f0eafa,#e8f0e6);text-align:center}
+  .rec-emoji{font-size:3.5rem;margin-bottom:.8rem;display:block}
+  .rec-title{font-family:var(--serif);font-size:1.8rem;font-weight:400;color:var(--dark);margin-bottom:.4rem}
+  .rec-meta{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;margin-top:.8rem}
+  .meta-pill{font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.25rem .7rem;border-radius:12px}
+  .pill-cat{background:var(--p-lt);color:var(--p)}
+  .pill-dur{background:var(--sage-lt);color:var(--sage)}
+  .pill-price{background:var(--gold-lt);color:var(--gold)}
+  .rec-body{padding:1.5rem}
+  .rec-desc{font-size:.95rem;color:var(--mid);line-height:1.75;font-weight:300;margin-bottom:1.25rem}
+
+  /* AUDIO PLAYER */
+  .player-section{margin-bottom:1.5rem}
+  .player-label{font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--light);margin-bottom:.6rem}
+  .player-wrap{background:var(--bg);border-radius:12px;padding:1rem;border:1px solid var(--bdr)}
+  .player-wrap audio{width:100%;outline:none;border-radius:8px;accent-color:var(--p)}
+  .no-audio{text-align:center;padding:1.5rem;color:var(--light);font-size:.88rem;font-style:italic}
+  .no-audio span{font-size:1.5rem;display:block;margin-bottom:.4rem}
+
+  /* STATUS BANNER */
+  .status-banner{border-radius:12px;padding:1rem 1.2rem;margin-bottom:1.5rem;font-size:.88rem;font-weight:600;display:flex;align-items:center;gap:.6rem}
+  .status-approved{background:var(--green-lt);color:var(--green);border:1px solid rgba(45,122,45,.2)}
+  .status-changes{background:var(--red-lt);color:var(--red);border:1px solid rgba(192,64,64,.2)}
+  .status-pending{background:var(--gold-lt);color:var(--gold);border:1px solid rgba(200,146,42,.2)}
+  .status-note{font-weight:300;margin-top:.4rem;font-size:.82rem;color:inherit;opacity:.85}
+
+  /* REVIEW FORM */
+  .review-section{background:var(--white);border-radius:18px;border:1px solid var(--bdr);padding:1.5rem;margin-bottom:1.5rem;box-shadow:0 4px 24px rgba(124,92,191,.08)}
+  .review-title{font-family:var(--serif);font-size:1.2rem;color:var(--dark);margin-bottom:1rem}
+  .form-group{display:flex;flex-direction:column;gap:.35rem;margin-bottom:1rem}
+  .form-group label{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mid)}
+  .form-group input,.form-group textarea{padding:.65rem .9rem;border-radius:8px;border:1.5px solid var(--bdr);font-family:var(--sans);font-size:.88rem;color:var(--dark);background:var(--white);outline:none;transition:border-color .2s}
+  .form-group input:focus,.form-group textarea:focus{border-color:var(--p-mid);box-shadow:0 0 0 3px rgba(169,141,214,.1)}
+  .form-group textarea{resize:vertical;min-height:90px}
+  .review-btns{display:flex;flex-wrap:wrap;gap:.75rem}
+  .btn-approve{background:linear-gradient(135deg,var(--green),#1a5a1a);color:var(--white);padding:.75rem 1.6rem;border-radius:10px;font-family:var(--sans);font-weight:700;font-size:.9rem;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(45,122,45,.25);transition:all .2s;flex:1}
+  .btn-approve:hover{transform:translateY(-1px)}
+  .btn-approve:disabled{opacity:.5;cursor:default;transform:none}
+  .btn-changes{background:transparent;color:var(--red);border:1.5px solid rgba(192,64,64,.35);padding:.75rem 1.4rem;border-radius:10px;font-family:var(--sans);font-weight:600;font-size:.88rem;cursor:pointer;transition:all .2s;flex:1}
+  .btn-changes:hover{background:var(--red-lt)}
+  .btn-changes:disabled{opacity:.5;cursor:default}
+
+  /* SUCCESS */
+  .success-card{background:var(--white);border-radius:18px;border:1px solid rgba(45,122,45,.2);padding:2.5rem;text-align:center;display:none}
+  .success-icon{font-size:3rem;margin-bottom:1rem}
+  .success-card h2{font-family:var(--serif);font-size:1.5rem;color:var(--green);margin-bottom:.5rem}
+  .success-card p{font-size:.9rem;color:var(--light);line-height:1.7}
+
+  /* FOOTER */
+  footer{padding:1.5rem;text-align:center;font-size:.75rem;color:var(--light);border-top:1px solid var(--bdr)}
+
+  @media(max-width:500px){main{padding:1.5rem 1rem}.rec-cover{padding:1.5rem}.review-btns{flex-direction:column}}
+</style>
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="header-logo">
+    Kelly Hull Hypnotherapy
+    <span>Certified Clinical & Transpersonal Hypnotherapist</span>
+  </a>
+  <span class="header-badge">🎧 Recording Review</span>
+</header>
+
+<main id="main">
+  <div class="center" id="loadingView">
+    <div class="spinner"></div>
+    <p style="color:var(--light);font-size:.9rem">Loading recording…</p>
+  </div>
+</main>
+
+<footer>This review link is private and intended for authorized team members only.</footer>
+
+<script>
+// ═══════════════════════════════════
+// CONFIG — same as admin.html
+// ═══════════════════════════════════
+const SUPABASE_URL      = 'https://lwvzppxstpcvqkscgxzz.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_tFEm62uoKqOwY2TqYZZk1g_8636a87R';
+
+const sb  = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const token = new URLSearchParams(window.location.search).get('token');
+
+const CAT_COLOR = {
+  'Sleep':'#e8e0f5','Anxiety':'#e8f0e6','Confidence':'#fdf3e3',
+  'Weight':'#f5e8e8','Habits':'#e3f5f5','Healing':'#e8f4e8',
+  'Performance':'#fdeee3','General':'#ede8f7'
+};
+
+async function init() {
+  if (!token) {
+    showError('No Review Token', 'This link is missing a review token. Please request a new link from Kelly.');
+    return;
+  }
+
+  try {
+    const { data: rec, error } = await sb.rpc('get_recording_by_review_token', { token });
+    if (error || !rec) {
+      showError('Recording Not Found', 'This review link is invalid or has expired. Please request a new link.');
+      return;
+    }
+    renderReview(rec);
+  } catch(e) {
+    showError('Connection Error', 'Could not load the recording. Please try again in a moment.');
+  }
+}
+
+function renderReview(rec) {
+  const coverBg = CAT_COLOR[rec.category] || '#ede8f7';
+  const hasAudio = !!rec.preview_path;
+  const status   = rec.review_status || 'pending';
+
+  const statusHTML = {
+    approved: `<div class="status-banner status-approved">
+      ✓ Approved
+      ${rec.reviewed_by ? `<span class="status-note">by ${rec.reviewed_by}${rec.review_notes ? ' · "' + rec.review_notes + '"' : ''}</span>` : ''}
+    </div>`,
+    changes_requested: `<div class="status-banner status-changes">
+      ✗ Changes Requested
+      ${rec.review_notes ? `<div class="status-note">"${rec.review_notes}"</div>` : ''}
+    </div>`,
+    pending: `<div class="status-banner status-pending">⏳ Awaiting Review</div>`,
+  }[status] || '';
+
+  document.getElementById('main').innerHTML = `
+
+    ${statusHTML}
+
+    <div class="rec-card">
+      <div class="rec-cover" style="background:linear-gradient(135deg,${coverBg},#faf7f2)">
+        <span class="rec-emoji">${rec.cover_emoji || '✨'}</span>
+        <div class="rec-title">${rec.title || 'Untitled Recording'}</div>
+        <div class="rec-meta">
+          ${rec.category ? `<span class="meta-pill pill-cat">${rec.category}</span>` : ''}
+          ${rec.duration_minutes ? `<span class="meta-pill pill-dur">${rec.duration_minutes} min</span>` : ''}
+          ${rec.price_usd ? `<span class="meta-pill pill-price">$${parseFloat(rec.price_usd).toFixed(0)}</span>` : ''}
+        </div>
+      </div>
+      <div class="rec-body">
+        ${rec.description ? `<div class="rec-desc">${rec.description}</div>` : ''}
+
+        <div class="player-section">
+          <div class="player-label">Preview Audio</div>
+          <div class="player-wrap">
+            ${hasAudio
+              ? `<audio controls preload="metadata" src="${rec.preview_path}"></audio>`
+              : `<div class="no-audio"><span>🎵</span>No audio file uploaded yet</div>`
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="review-section" id="reviewForm" style="${status !== 'pending' ? 'display:none' : ''}">
+      <div class="review-title">Leave Your Feedback</div>
+      <div class="form-group">
+        <label>Your Name</label>
+        <input type="text" id="reviewerName" placeholder="e.g. Sarah" autocomplete="name"/>
+      </div>
+      <div class="form-group">
+        <label>Notes (optional)</label>
+        <textarea id="reviewNotes" placeholder="Any feedback, suggestions, or comments for Kelly…"></textarea>
+      </div>
+      <div class="review-btns">
+        <button class="btn-approve" onclick="submitReview('approved')">✓ Approve Recording</button>
+        <button class="btn-changes" onclick="submitReview('changes_requested')">✗ Request Changes</button>
+      </div>
+    </div>
+
+    ${status !== 'pending' ? `
+    <div class="review-section">
+      <div class="review-title">Update Your Feedback</div>
+      <div class="form-group">
+        <label>Your Name</label>
+        <input type="text" id="reviewerName" placeholder="e.g. Sarah"/>
+      </div>
+      <div class="form-group">
+        <label>Updated Notes (optional)</label>
+        <textarea id="reviewNotes" placeholder="Any updated feedback…"></textarea>
+      </div>
+      <div class="review-btns">
+        <button class="btn-approve" onclick="submitReview('approved')">✓ Mark Approved</button>
+        <button class="btn-changes" onclick="submitReview('changes_requested')">✗ Request Changes</button>
+      </div>
+    </div>` : ''}
+
+    <div class="success-card" id="successCard">
+      <div class="success-icon" id="successIcon">✓</div>
+      <h2 id="successTitle">Feedback Submitted</h2>
+      <p id="successMsg">Thank you — Kelly has been notified of your feedback.</p>
+    </div>
+  `;
+}
+
+async function submitReview(status) {
+  const name  = document.getElementById('reviewerName')?.value?.trim() || 'Team member';
+  const notes = document.getElementById('reviewNotes')?.value?.trim() || '';
+
+  document.querySelectorAll('.btn-approve,.btn-changes').forEach(b => { b.disabled = true; });
+
+  const { error } = await sb.rpc('submit_review', {
+    token, r_status: status, r_notes: notes, r_reviewer: name
+  });
+
+  if (error) {
+    alert('Something went wrong — please try again.');
+    document.querySelectorAll('.btn-approve,.btn-changes').forEach(b => { b.disabled = false; });
+    return;
+  }
+
+  document.getElementById('reviewForm')?.style && (document.getElementById('reviewForm').style.display = 'none');
+  const sc = document.getElementById('successCard');
+  sc.style.display = 'block';
+  document.getElementById('successIcon').textContent = status === 'approved' ? '✅' : '📝';
+  document.getElementById('successTitle').textContent = status === 'approved' ? 'Recording Approved!' : 'Changes Requested';
+  document.getElementById('successMsg').textContent = status === 'approved'
+    ? `Thanks ${name} — Kelly has been notified this recording is ready.`
+    : `Thanks ${name} — Kelly has been notified your feedback is waiting.`;
+}
+
+function showError(title, msg) {
+  document.getElementById('main').innerHTML = `
+    <div class="center">
+      <div class="center-icon">🔒</div>
+      <h2>${title}</h2>
+      <p>${msg}</p>
+    </div>`;
+}
+
+init();
+</script>
+</body>
+</html>
