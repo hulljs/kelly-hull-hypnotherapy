@@ -293,7 +293,7 @@ tr:hover td{background:rgba(237,232,247,.4)}
       <table>
         <thead><tr>
           <th>Recording</th><th>Category</th><th>Duration</th><th>Price</th>
-          <th>Preview</th><th>Published</th><th>Featured</th><th>Actions</th>
+          <th>Preview</th><th>Review</th><th>Published</th><th>Featured</th><th>Actions</th>
         </tr></thead>
         <tbody id="recTable"><tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--light)">Loading…</td></tr></tbody>
       </table>
@@ -479,11 +479,21 @@ function renderTable() {
       <td>${r.duration_minutes} min</td>
       <td>$${parseFloat(r.price_usd).toFixed(0)}</td>
       <td>${r.preview_path ? '<span style="color:var(--sage);font-size:.8rem">✓ Uploaded</span>' : '<span style="color:var(--light);font-size:.78rem">None</span>'}</td>
+      <td id="rv-${r.id}">
+        ${(() => {
+          const s = r.review_status || 'pending';
+          const colors = {approved:'var(--sage)',changes_requested:'var(--red)',pending:'var(--light)'};
+          const labels = {approved:'✓ Approved',changes_requested:'✗ Changes',pending:'— Pending'};
+          return `<span style="font-size:.72rem;font-weight:700;color:${colors[s]||colors.pending}">${labels[s]||labels.pending}</span>
+            ${r.review_notes ? `<div style="font-size:.68rem;color:var(--light);margin-top:.1rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.review_notes}">"${r.review_notes}"</div>` : ''}`;
+        })()}
+      </td>
       <td><label class="toggle"><input type="checkbox" ${r.is_published?'checked':''} onchange="togglePublish('${r.id}',this)"/><span class="toggle-slider"></span></label></td>
       <td><label class="toggle"><input type="checkbox" ${r.is_featured?'checked':''} onchange="toggleField('${r.id}','is_featured',this.checked)"/><span class="toggle-slider"></span></label></td>
       <td><div class="actions">
         <button class="btn btn-ghost btn-sm" onclick="editRecording('${r.id}')">Edit</button>
         ${r.preview_path ? `<button class="btn btn-ghost btn-sm" onclick="downloadRecording('${r.preview_path}','${r.title.replace(/'/g,"\\'")}')" title="Download audio file">⬇ Download</button>` : '<button class="btn btn-ghost btn-sm" disabled style="opacity:.35" title="No audio uploaded yet">⬇ Download</button>'}
+        <button class="btn btn-ghost btn-sm" onclick="copyReviewLink('${r.review_token}')" title="Copy shareable review link">🔗 Review Link</button>
         <button class="btn btn-danger btn-sm" onclick="deleteRecording('${r.id}','${r.title.replace(/'/g,"\\'")}')">Delete</button>
       </div></td>
     </tr>`).join('');
@@ -610,6 +620,18 @@ async function togglePublish(id, checkbox) {
   await toggleField(id, 'is_published', checkbox.checked);
 }
 
+
+
+function copyReviewLink(token) {
+  if (!token) { showToast('No review token found — try reloading', 'error'); return; }
+  const url = window.location.origin + '/review.html?token=' + token;
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('✓ Review link copied — share with your team', 'success', 3500);
+  }).catch(() => {
+    // Fallback for older browsers
+    prompt('Copy this review link:', url);
+  });
+}
 
 function downloadRecording(url, title) {
   if (!url) { showToast('No audio file uploaded for this recording', 'error'); return; }
