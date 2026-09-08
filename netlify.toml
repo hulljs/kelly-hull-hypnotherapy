@@ -4,6 +4,13 @@
 [functions]
   node_bundler = "esbuild"
 
+# Tell browsers not to cache HTML files so updates show immediately
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma = "no-cache"
+
 [[headers]]
   for = "/admin.html"
   [headers.values]
