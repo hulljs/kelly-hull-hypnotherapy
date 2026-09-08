@@ -978,8 +978,19 @@
     grid.innerHTML = data.map(r => {
       const bg = CAT_BG[r.category] || CAT_BG['General'];
       const price = parseFloat(r.price_usd) === 0 ? 'Free' : '$' + parseFloat(r.price_usd).toFixed(0);
+      const isFree = parseFloat(r.price_usd) === 0;
+      const hasUrl = r.purchase_url && r.purchase_url.length > 1;
+      const href = isFree && r.preview_path ? r.preview_path
+                 : hasUrl ? r.purchase_url
+                 : 'recordings.html';
+      const download = isFree && r.preview_path ? 'download' : '';
+      const target = hasUrl && !isFree ? 'target="_blank"' : '';
+      const btnLabel = isFree && r.preview_path ? '⬇ Download Free'
+                     : hasUrl ? 'Buy →'
+                     : '🎧 Listen';
+      const btnColor = isFree ? 'var(--sage-mid)' : 'var(--lavender-deep)';
       return `
-      <a href="recordings.html" style="text-decoration:none;display:block" class="teaser-card">
+      <a href="${href}" ${download} ${target} style="text-decoration:none;display:block" class="teaser-card">
         <div class="teaser-cover" style="background:${bg}">${r.cover_emoji || '✨'}</div>
         <div class="teaser-body">
           <h4>${r.title}</h4>
@@ -987,7 +998,7 @@
         </div>
         <div class="teaser-meta">
           <span class="teaser-price" style="color:var(--lavender-light);font-size:1rem">${price}</span>
-          <span class="teaser-dur">${r.duration_minutes} min</span>
+          <span style="background:${btnColor};color:#fff;padding:.2rem .7rem;border-radius:12px;font-size:.7rem;font-weight:700">${btnLabel}</span>
         </div>
       </a>`;
     }).join('');
