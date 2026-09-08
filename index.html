@@ -980,17 +980,17 @@
       const price = parseFloat(r.price_usd) === 0 ? 'Free' : '$' + parseFloat(r.price_usd).toFixed(0);
       const isFree = parseFloat(r.price_usd) === 0;
       const hasUrl = r.purchase_url && r.purchase_url.length > 1;
-      const href = isFree && r.preview_path ? r.preview_path
-                 : hasUrl ? r.purchase_url
-                 : 'recordings.html';
-      const download = isFree && r.preview_path ? 'download' : '';
-      const target = hasUrl && !isFree ? 'target="_blank"' : '';
       const btnLabel = isFree && r.preview_path ? '⬇ Download Free'
                      : hasUrl ? 'Buy →'
-                     : '🎧 Listen';
-      const btnColor = isFree ? 'var(--sage-mid)' : 'var(--lavender-deep)';
+                     : '🎧 Browse';
+      const btnColor = isFree && r.preview_path ? 'var(--sage-mid)' : 'var(--lavender-deep)';
+      const onclick = isFree && r.preview_path
+        ? `event.preventDefault(); window.open('${r.preview_path}','_blank');`
+        : hasUrl
+        ? `event.preventDefault(); window.open('${r.purchase_url}','_blank');`
+        : ``;
       return `
-      <a href="${href}" ${download} ${target} style="text-decoration:none;display:block" class="teaser-card">
+      <a href="recordings.html" onclick="${onclick}" style="text-decoration:none;display:block" class="teaser-card">
         <div class="teaser-cover" style="background:${bg}">${r.cover_emoji || '✨'}</div>
         <div class="teaser-body">
           <h4>${r.title}</h4>
