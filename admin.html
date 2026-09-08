@@ -352,7 +352,7 @@ tr:hover td{background:rgba(237,232,247,.4)}
       </div>
       <div class="form-group">
         <label>Price (USD) *</label>
-        <input type="number" id="fPrice" placeholder="19" min="0" step="1"/>
+        <input type="number" id="fPrice" placeholder="0" min="0" step="1"/>
       </div>
       <div class="form-group full">
         <label>Payhip / Gumroad Purchase URL *</label>
@@ -403,7 +403,7 @@ tr:hover td{background:rgba(237,232,247,.4)}
 // (same values go in recordings.html)
 // ══════════════════════════════════════════════
 const SUPABASE_URL      = 'https://lwvzppxstpcvqkscgxzz.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx3dnpwcHhzdHBjdnFrc2NneHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2MDI3NzUsImV4cCI6MjA5OTE3ODc3NX0.ow-qgfLSzkhLseqtuiMMILckNTJ-07g-qnGAU1E_Tko';
+const SUPABASE_ANON_KEY = 'sb_publishable_tFEm62uoKqOwY2TqYZZk1g_8636a87R';
 // ══════════════════════════════════════════════
 
 let sb, currentUser, editingId = null, allRecs = [];
@@ -586,8 +586,8 @@ function checkPublishReady() {
   if (!title)       missing.push('Title');
   if (!desc)        missing.push('Description');
   if (!duration)    missing.push('Duration');
-  if (!price)       missing.push('Price');
-  if (!purchaseUrl) missing.push('Purchase URL');
+  if (price === '' || price === null || price === undefined) missing.push('Price');
+  if (!purchaseUrl && parseFloat(price) > 0) missing.push('Purchase URL (required when price is set)');
   if (!fileInput.files[0] && !existingPreview) missing.push('Preview audio');
 
   if (missing.length) {
@@ -608,8 +608,8 @@ async function togglePublish(id, checkbox) {
     if (!rec.title)        missing.push('Title');
     if (!rec.description)  missing.push('Description');
     if (!rec.duration_minutes) missing.push('Duration');
-    if (!rec.price_usd)    missing.push('Price');
-    if (!rec.purchase_url) missing.push('Purchase URL');
+    if (rec.price_usd === null || rec.price_usd === undefined || rec.price_usd === '') missing.push('Price');
+    if (!rec.purchase_url && parseFloat(rec.price_usd) > 0) missing.push('Purchase URL');
     if (!rec.preview_path) missing.push('Preview audio');
     if (missing.length) {
       showToast('Cannot publish — missing: ' + missing.join(', '), 'error', 5000);
@@ -680,8 +680,8 @@ async function saveRecording() {
     if (!title)       missing.push('Title');
     if (!desc)        missing.push('Description');
     if (!duration)    missing.push('Duration');
-    if (!price)       missing.push('Price');
-    if (!purchaseUrl) missing.push('Purchase URL');
+    if (price === '' || price === null || price === undefined) missing.push('Price');
+    if (!purchaseUrl && parseFloat(price) > 0) missing.push('Purchase URL');
     if (!fileInput.files[0] && !existingPreview) missing.push('Preview audio');
     if (missing.length) {
       showToast('Cannot publish yet — missing: ' + missing.join(', '), 'error', 6000);
