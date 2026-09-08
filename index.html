@@ -963,7 +963,7 @@
     const { createClient } = supabase;
     const sb = createClient(SUPA_URL, SUPA_KEY);
     const { data } = await sb.from('recordings')
-      .select('id,title,description,category,duration_minutes,price_usd,cover_emoji,is_featured,purchase_url')
+      .select('id,title,description,category,duration_minutes,price_usd,cover_emoji,is_featured,purchase_url,preview_path')
       .eq('is_published', true)
       .eq('is_featured', true)
       .order('created_at', { ascending: false })
