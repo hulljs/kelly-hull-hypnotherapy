@@ -299,7 +299,17 @@ function cardHTML(r) {
     <div class="card-footer">
       <div class="price">$${parseFloat(r.price_usd).toFixed(0)}</div>
       ${previewBtn}
-      <a href="${r.purchase_url || '#'}" target="_blank" class="btn-buy">Buy →</a>
+      ${(() => {
+        const isFree = parseFloat(r.price_usd) === 0;
+        const hasUrl = r.purchase_url && r.purchase_url.length > 1;
+        if (isFree && r.preview_path) {
+          return `<a href="${r.preview_path}" download class="btn-buy" title="Download free recording">⬇ Download Free</a>`;
+        } else if (hasUrl) {
+          return `<a href="${r.purchase_url}" target="_blank" class="btn-buy">Buy →</a>`;
+        } else {
+          return `<a href="index.html#contact" class="btn-buy" style="background:var(--sage-mid)">Contact to Get</a>`;
+        }
+      })()}
     </div>
   </div>`;
 }
