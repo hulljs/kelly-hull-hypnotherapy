@@ -440,6 +440,7 @@
     .booking-section { padding: 4rem 1.25rem; }
   }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -674,16 +675,19 @@
 <!-- RECORDINGS TEASER -->
 <section class="recordings-teaser">
   <div class="section-inner">
-    <div class="reveal" style="max-width:640px">
+    <div class="reveal">
       <p class="section-eyebrow">Digital Downloads · Available Now</p>
       <h2 class="section-title">Guided Hypnotherapy <em style="color:var(--lavender-light)">Recordings</em></h2>
       <p class="section-lead">Professional recordings designed to work between sessions, or as your very first step into the power of your subconscious mind. Download and listen anywhere, any time.</p>
-      <div class="teaser-cta reveal" style="margin-top:2rem">
-        <a href="recordings.html" class="btn-primary" style="text-decoration:none;font-size:.95rem;padding:.9rem 2.4rem">
-          🎧 Browse the Recording Library
-        </a>
-        <span style="color:rgba(255,255,255,0.4);font-size:.82rem">Preview before you download &nbsp;·&nbsp; Instant access</span>
-      </div>
+    </div>
+    <div class="teaser-grid" id="featuredGrid" style="margin-top:2.5rem">
+      <!-- Loaded dynamically from Supabase -->
+    </div>
+    <div class="teaser-cta reveal" style="margin-top:2rem">
+      <a href="recordings.html" class="btn-primary" style="text-decoration:none;font-size:.95rem;padding:.9rem 2.4rem">
+        🎧 Browse the Full Recording Library
+      </a>
+      <span style="color:rgba(255,255,255,0.4);font-size:.82rem">Preview before you download &nbsp;·&nbsp; Instant access</span>
     </div>
   </div>
 </section>
@@ -940,6 +944,70 @@
       alert('Something went wrong. Please email kelly@kellyhullhypnotherapy.com directly.');
     });
   }
+
+// ── FEATURED RECORDINGS ON HOMEPAGE ────────────────────────────
+(async function() {
+  const SUPA_URL = 'https://lwvzppxstpcvqkscgxzz.supabase.co';
+  const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx3dnpwcHhzdHBjdnFrc2NneHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2MDI3NzUsImV4cCI6MjA5OTE3ODc3NX0.ow-qgfLSzkhLseqtuiMMILckNTJ-07g-qnGAU1E_Tko';
+  const grid = document.getElementById('featuredGrid');
+  if (!grid) return;
+
+  const CAT_BG = {
+    'Sleep':'rgba(169,141,214,0.15)','Anxiety':'rgba(122,158,116,0.15)',
+    'Confidence':'rgba(200,146,42,0.15)','Weight':'rgba(192,100,100,0.15)',
+    'Habits':'rgba(42,180,180,0.15)','Healing':'rgba(80,160,80,0.15)',
+    'Performance':'rgba(200,120,60,0.15)','General':'rgba(169,141,214,0.15)'
+  };
+
+  try {
+    const { createClient } = supabase;
+    const sb = createClient(SUPA_URL, SUPA_KEY);
+    const { data } = await sb.from('recordings')
+      .select('id,title,description,category,duration_minutes,price_usd,cover_emoji,is_featured,purchase_url')
+      .eq('is_published', true)
+      .eq('is_featured', true)
+      .order('created_at', { ascending: false })
+      .limit(4);
+
+    if (!data || !data.length) {
+      // No featured recordings — hide the grid entirely
+      grid.style.display = 'none';
+      return;
+    }
+
+    grid.innerHTML = data.map(r => {
+      const bg = CAT_BG[r.category] || CAT_BG['General'];
+      const price = parseFloat(r.price_usd) === 0 ? 'Free' : '$' + parseFloat(r.price_usd).toFixed(0);
+      return `
+      <div class="teaser-card">
+        <div class="teaser-cover" style="background:${bg}">${r.cover_emoji || '✨'}</div>
+        <div class="teaser-body">
+          <h4>${r.title}</h4>
+          <p>${r.description ? r.description.slice(0,80) + (r.description.length > 80 ? '…' : '') : ''}</p>
+        </div>
+        <div class="teaser-meta">
+          <span class="teaser-price" style="color:var(--lavender-light);font-size:1rem">${price}</span>
+          <span class="teaser-dur">${r.duration_minutes} min</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Trigger reveal animation
+    grid.querySelectorAll('.teaser-card').forEach((el, i) => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(20px)';
+      el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+      setTimeout(() => {
+        el.style.opacity = '1';
+        el.style.transform = 'translateY(0)';
+      }, i * 100);
+    });
+
+  } catch(e) {
+    grid.style.display = 'none';
+  }
+})();
+
 </script>
 </body>
 </html>
