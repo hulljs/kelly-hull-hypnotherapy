@@ -1,17 +1,29 @@
 /*
   Netlify Function: post-social
-  Proxies post requests to Buffer API — keeps credentials server-side.
+  Sends post text to a Make.com webhook which posts to Facebook + Instagram.
 
-  ENVIRONMENT VARIABLES (set in Netlify → Site configuration → Environment variables):
-  ─────────────────────────────────────────────────────────────────────────────────────
-  BUFFER_ACCESS_TOKEN   Your Buffer personal access token
-                        Get it: buffer.com/developers/api → Get Access Token
+  ═══════════════════════════════════════════════════════════════
+  WHEN YOU GET BACK — 3 steps to go live:
 
-  BUFFER_PROFILE_IDS    Comma-separated Buffer profile IDs for FB + IG
-                        Get them: after setting vars, visit
-                        https://kellyhullhypnotherapy.com/.netlify/functions/get-profiles
-                        to see your profile IDs, then paste them here.
-  ─────────────────────────────────────────────────────────────────────────────────────
+  1. Go to make.com → sign up free → Create a new scenario
+     - Add module: Webhooks → Custom Webhook → Add → copy the URL
+     - Add module: Facebook Pages → Create a Post
+         · Connect your Facebook account
+         · Select the @kellyhullhypnotherapy page
+         · Set Message = {{1.text}} (from the webhook data)
+     - Add module: Instagram for Business → Create a Post
+         · Connect via Facebook
+         · Select @kellyhullhypnotherapy Instagram
+         · Set Caption = {{1.text}}
+     - Turn the scenario ON
+     - Copy the webhook URL (looks like https://hook.make.com/xxxxx)
+
+  2. In Netlify → your site → Site configuration → Environment variables
+     Add: MAKE_WEBHOOK_URL = paste the Make.com webhook URL here
+     (You can delete BUFFER_ACCESS_TOKEN and BUFFER_PROFILE_IDS)
+
+  3. That's it — the Approve & Post Now button in the admin will work.
+  ═══════════════════════════════════════════════════════════════
 */
 
 exports.handler = async (event) => {
@@ -29,48 +41,62 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
-  const TOKEN    = process.env.BUFFER_ACCESS_TOKEN;
-  const PROFILES = process.env.BUFFER_PROFILE_IDS;
+  const WEBHOOK_URL = process.env.MAKE_WEBHOOK_URL;
 
-  if (!TOKEN || !PROFILES) {
-    return { statusCode: 500, headers, body: JSON.stringify({
-      error: 'Buffer credentials not configured. Add BUFFER_ACCESS_TOKEN and BUFFER_PROFILE_IDS in Netlify environment variables.'
-    })};
+  if (!WEBHOOK_URL) {
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({
+        error: 'MAKE_WEBHOOK_URL not configured. Add it in Netlify → Site configuration → Environment variables.',
+        setup: true
+      })
+    };
   }
 
   let body;
-  try { body = JSON.parse(event.body); }
-  catch { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) }; }
+  try {
+    body = JSON.parse(event.body);
+  } catch {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
+  }
 
-  const { text, now = true } = body;
-  if (!text) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing text field' }) };
-
-  const profileIds = PROFILES.split(',').map(p => p.trim()).filter(Boolean);
-  const params = new URLSearchParams();
-  params.append('text', text);
-  params.append('now', now ? 'true' : 'false');
-  profileIds.forEach(id => params.append('profile_ids[]', id));
+  const { text } = body;
+  if (!text) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing text field' }) };
+  }
 
   try {
-    const res = await fetch('https://api.bufferapp.com/1/updates/create.json', {
+    const res = await fetch(WEBHOOK_URL, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${TOKEN}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: params.toString(),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text,
+        platform: 'facebook,instagram',
+        timestamp: new Date().toISOString(),
+      }),
     });
 
-    const data = await res.json();
-
     if (!res.ok) {
-      console.error('Buffer error:', data);
-      return { statusCode: res.status, headers, body: JSON.stringify({ error: data.message || 'Buffer API error', detail: data }) };
+      const detail = await res.text();
+      return {
+        statusCode: res.status,
+        headers,
+        body: JSON.stringify({ error: 'Make.com webhook failed', detail })
+      };
     }
 
-    return { statusCode: 200, headers, body: JSON.stringify({ success: true, buffer: data }) };
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ success: true, message: 'Post sent to Make.com successfully' })
+    };
+
   } catch (err) {
-    console.error('Fetch error:', err);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: err.message })
+    };
   }
 };
