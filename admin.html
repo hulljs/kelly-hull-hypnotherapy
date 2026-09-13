@@ -1269,15 +1269,14 @@ function renderDay(offset) {
 
   document.getElementById('socialMain').innerHTML = `
 <div id="setupBanner" class="setup-banner" style="display:none">
-  <h3>⚡ Buffer Setup Required (one-time, ~5 minutes)</h3>
+  <h3>⚡ Make.com Setup Required (one-time, ~10 minutes)</h3>
   <ol>
-    <li>Go to <strong>buffer.com</strong> → sign up free → connect your Facebook Page and Instagram account</li>
-    <li>Go to <strong>buffer.com/developers/api</strong> → click Get Access Token → copy it</li>
-    <li>In <strong>Netlify → your site → Site configuration → Environment variables</strong>, add:<br/>
-      <code>BUFFER_ACCESS_TOKEN</code> = your token</li>
-    <li>Visit <code>kellyhullhypnotherapy.com/.netlify/functions/get-profiles</code> — copy your profile IDs</li>
-    <li>Add <code>BUFFER_PROFILE_IDS</code> = the IDs separated by commas (e.g. <code>abc123,def456</code>)</li>
-    <li>Redeploy the site on Netlify — done!</li>
+    <li>Go to <strong>make.com</strong> → sign up free → click <strong>Create a new scenario</strong></li>
+    <li>Add module: <strong>Webhooks → Custom Webhook → Add</strong> → copy the webhook URL</li>
+    <li>Add module: <strong>Facebook Pages → Create a Post</strong> → connect Facebook → select @kellyhullhypnotherapy page → set Message = <code>{{1.text}}</code></li>
+    <li>Add module: <strong>Instagram for Business → Create a Post</strong> → connect via Facebook → set Caption = <code>{{1.text}}</code></li>
+    <li>Turn the scenario <strong>ON</strong></li>
+    <li>In <strong>Netlify → Site configuration → Environment variables</strong> add:<br/><code>MAKE_WEBHOOK_URL</code> = paste your Make.com webhook URL → Save</li>
   </ol>
 </div>
 
@@ -1356,7 +1355,7 @@ async function doPost(offset, quoteId) {
     const data = await res.json();
     if (!res.ok || data.error) {
       showToast('Post failed: ' + (data.error || 'Unknown error'), 'error', 5000);
-      if ((data.error||'').includes('not configured')) document.getElementById('setupBanner').style.display='block';
+      if ((data.error||'').includes('not configured') || data.setup) document.getElementById('setupBanner').style.display='block';
       btn.disabled = false; btn.textContent = '🚀 Approve & Post Now';
       return;
     }
