@@ -41,7 +41,7 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
-  const WEBHOOK_URL = process.env.MAKE_WEBHOOK_URL;
+  const WEBHOOK_URL = process.env.MAKE_WEBHOOK_URL || 'https://hook.us2.make.com/het28e7vgyxjsrgg8xdhrcjsf4vaw7st';
 
   if (!WEBHOOK_URL) {
     return {
